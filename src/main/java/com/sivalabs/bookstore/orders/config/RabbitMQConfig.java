@@ -6,7 +6,6 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -28,8 +27,8 @@ public class RabbitMQConfig {
     public static final String DLQ_ROUTING_KEY = "orders.new.dlq";
 
     @Bean
-    TopicExchange exchange() {
-        return new TopicExchange(EXCHANGE_NAME);
+    DirectExchange exchange() {
+        return new DirectExchange(EXCHANGE_NAME);
     }
 
     @Bean
@@ -43,7 +42,7 @@ public class RabbitMQConfig {
 
     @Bean
     @ConditionalOnProperty(name = "app.amqp.new-orders.bind", havingValue = "true")
-    Binding newOrdersQueueBinding(Queue newOrdersQueue, TopicExchange exchange) {
+    Binding newOrdersQueueBinding(Queue newOrdersQueue, DirectExchange exchange) {
         return BindingBuilder.bind(newOrdersQueue).to(exchange).with(ROUTING_KEY);
     }
 
