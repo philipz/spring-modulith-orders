@@ -1,0 +1,14 @@
+catalog-info.yaml
+  h_1b119f25eaf333 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "20e5696d35c04f68a69200ee1b3d0d0f2f7ada53",
+  "prompts": {},
+  "humans": {
+    "h_1b119f25eaf333": {
+      "author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
