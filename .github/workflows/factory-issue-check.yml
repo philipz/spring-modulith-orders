@@ -24,6 +24,8 @@ jobs:
       - name: Check issue format (form fields)
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh 需 repo 上下文推斷（無 checkout）——GH_REPO 指定目標 repo
+          GH_REPO: ${{ github.repository }}
         run: |
           ISSUE="${{ github.event.issue.number }}"
           BODY=$(gh issue view "$ISSUE" --json body --jq .body)
