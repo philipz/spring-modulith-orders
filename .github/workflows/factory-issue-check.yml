@@ -39,13 +39,11 @@ jobs:
           if [ "$ACC" -eq 0 ]; then MISSING="$MISSING「驗收標準勾選」"; fi
 
           if [ -z "$MISSING" ]; then
-            gh issue comment "$ISSUE" --body \
-              '✅ **Issue 格式合規**（factory-issue-check）：任務類型、需求、DoD 齊全。' \
-              '請到 software_factory → Actions → Factory Run 手動 dispatch（填 repo/base_branch/issue_number）。'
+            COMMENT='✅ **Issue 格式合規**（factory-issue-check）：任務類型、需求、DoD 齊全。請到 software_factory → Actions → Factory Run 手動 dispatch（填 repo/base_branch/issue_number）。'
+            gh issue comment "$ISSUE" --body "$COMMENT"
             echo "格式合規"
           else
-            gh issue comment "$ISSUE" --body \
-              "❌ **Issue 格式不合規**（factory-issue-check）：缺 $MISSING。" \
-              '請依 `.github/ISSUE_TEMPLATE/factory-work-item.yml` 表單補齊後編輯 Issue（編輯會重新檢查）。'
+            COMMENT="❌ **Issue 格式不合規**（factory-issue-check）：缺 $MISSING。請依 .github/ISSUE_TEMPLATE/factory-work-item.yml 表單補齊後編輯 Issue（編輯會重新檢查）。"
+            gh issue comment "$ISSUE" --body "$COMMENT"
             exit 1
           fi
