@@ -13,7 +13,7 @@ metadata:
     # 三軸評分（0–2 每軸；總分 6 為最高風險，直接 in-loop）
     factory.io/business-criticality: strategic
     factory.io/risk-profile: high
-    factory.io/complexity: high
+    factory.io/complexity: low
     # 技術棧 annotation（quint-spec 指向該 repo 自己的規格根）
     factory.io/stack: java-springboot
     factory.io/test-framework: junit
