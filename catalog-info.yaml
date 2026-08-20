@@ -18,3 +18,5 @@ metadata:
     factory.io/stack: java-springboot
     factory.io/test-framework: junit
     factory.io/quint-spec: specs/
+spec:
+  type: service
