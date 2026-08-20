@@ -20,3 +20,4 @@ metadata:
     factory.io/quint-spec: specs/
 spec:
   type: service
+  lifecycle: production
