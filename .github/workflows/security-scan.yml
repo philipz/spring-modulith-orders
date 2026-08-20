@@ -1,0 +1,39 @@
+# Security scan（第一層 security，免費、不依賴 GHAS，2026-08-20）。
+# gitleaks（密鑰洩漏）+ Semgrep（開源 SAST，Java 規則）。Java 依賴漏洞由
+# Dependabot alerts 涵蓋（maven 生態 GitHub 原生支援）；OWASP dependency-check
+# 需下載 NVD DB（很慢），不加入每次 CI，見 dependabot.yml。
+name: Security Scan
+
+on:
+  push:
+    branches: [main, software-factory]
+  pull_request:
+    branches: [main, software-factory, 'factory/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks (secret scanning)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run Semgrep (SAST)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/java
