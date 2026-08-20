@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Spring Boot 3.5.5 需要 Java 21；mvnw wrapper 隨 repo 提供（不需全域 Maven）
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
