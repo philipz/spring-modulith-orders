@@ -25,7 +25,7 @@
         <hazelcast.version>5.5.6</hazelcast.version>
         <bootstrap.version>5.3.7</bootstrap.version>
         <htmx.version>2.0.6</htmx.version>
-        <spotless.version>2.46.1</spotless.version>
+        <spotless.version>3.10.0</spotless.version>
         <palantir-java-format.version>2.72.0</palantir-java-format.version>
         <resilience4j.version>2.2.0</resilience4j.version>
     </properties>
