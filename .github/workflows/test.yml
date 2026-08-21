@@ -19,7 +19,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Spring Boot 3.5.5 需要 Java 21；mvnw wrapper 隨 repo 提供（不需全域 Maven）
       - uses: actions/setup-java@v4
