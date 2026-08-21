@@ -22,12 +22,12 @@
         <java.version>21</java.version>
         <spring-modulith.version>1.4.3</spring-modulith.version>
         <datasource-micrometer-spring-boot.version>1.1.2</datasource-micrometer-spring-boot.version>
-        <hazelcast.version>5.5.6</hazelcast.version>
+        <hazelcast.version>5.7.1</hazelcast.version>
         <bootstrap.version>5.3.7</bootstrap.version>
         <htmx.version>2.0.6</htmx.version>
-        <spotless.version>2.46.1</spotless.version>
+        <spotless.version>3.10.0</spotless.version>
         <palantir-java-format.version>2.72.0</palantir-java-format.version>
-        <resilience4j.version>2.2.0</resilience4j.version>
+        <resilience4j.version>2.4.0</resilience4j.version>
         <grpc.version>1.83.1</grpc.version>
     </properties>
 
@@ -242,7 +242,7 @@
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
-            <version>4.2.0</version>
+            <version>4.3.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
