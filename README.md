@@ -9,6 +9,10 @@ Spring Modulith Orders 服務是以 Spring Boot 3.5 為基礎的訂單子系統�
 - `src/test/java`：測試與支援工具，結構對應 production 套件；`src/test/resources` 提供 SQL 資料與 Mockito 設定。
 - `scripts/rollback.sql`：進行資料回滾或手動驗證時使用。
 
+## gRPC 版本約束
+- `io.grpc.*` 與 `grpc-spring-boot-starter` 透過 `pom.xml` 的 `<grpc.version>` 與 `grpc-bom` import 統一鎖定在 **1.83.1 / 3.1.0.RELEASE**。
+- **所有 `io.grpc` artifact 必須保持相同版本**：grpc-java 在 1.83 已移除 `io.grpc.InternalGlobalInterceptors`，若只升級單一 artifact（例如只升 `grpc-protobuf`）會造成 classpath 版本落差，Spring context 啟動失敗並導致所有 gRPC 整合測試紅燈（issue #27）。每次調整 grpc 版本時請一併更新，並以 `GrpcStackCompatibilityTests` 驗證版本一致。
+
 ## 先決條件
 - JDK 21
 - Docker（執行整合測試時供 Testcontainers 啟動 Postgres、RabbitMQ）
