@@ -1,0 +1,48 @@
+pom.xml
+  h_1b119f25eaf333 10,23-24,61-68,75,96,138-139,188-190,202,228-237,242,247,252,258,285-302,311
+src/main/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicator.java
+  h_1b119f25eaf333 13-14
+src/main/java/com/sivalabs/bookstore/orders/config/GrpcHealthIndicator.java
+  h_1b119f25eaf333 17-18
+src/main/java/com/sivalabs/bookstore/orders/config/HazelcastConfig.java
+  h_1b119f25eaf333 94-98
+src/main/java/com/sivalabs/bookstore/orders/config/JpaConfig.java
+  h_1b119f25eaf333 3-4,6-7,14-21
+src/main/java/com/sivalabs/bookstore/orders/config/OrdersBackfillConfiguration.java
+  h_1b119f25eaf333 8,17-22
+src/main/java/com/sivalabs/bookstore/orders/config/RabbitMQConfig.java
+  h_1b119f25eaf333 10,14,68,70,75-76
+src/main/resources/application.properties
+  h_1b119f25eaf333 68
+src/main/resources/db/migration/V5__orders_create_event_publication_table.sql
+  h_1b119f25eaf333 8-10
+src/test/java/com/sivalabs/bookstore/orders/OrdersEndToEndTests.java
+  h_1b119f25eaf333 32-33,48
+src/test/java/com/sivalabs/bookstore/orders/OrdersLightweightIntegrationTests.java
+  h_1b119f25eaf333 26,73
+src/test/java/com/sivalabs/bookstore/orders/client/OrdersGrpcServiceNetworkIntegrationTest.java
+  h_1b119f25eaf333 36,114,117
+src/test/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicatorTests.java
+  h_1b119f25eaf333 14
+src/test/java/com/sivalabs/bookstore/orders/infrastructure/grpc/OrdersGrpcServiceInProcessTest.java
+  h_1b119f25eaf333 30,69-70,85,88
+src/test/java/com/sivalabs/bookstore/orders/migration/OrdersBackfillIntegrationTests.java
+  h_1b119f25eaf333 29,63-64,87
+src/test/java/com/sivalabs/bookstore/orders/web/CartRestControllerTests.java
+  h_1b119f25eaf333 19,23,35,37
+src/test/java/com/sivalabs/bookstore/orders/web/OrderRestControllerTests.java
+  h_1b119f25eaf333 30,33,43,45
+src/test/resources/db/test-init.sql
+  h_1b119f25eaf333 3-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8cdc4a30cb867e57c91eca9dd73c1eadea8ccefd",
+  "prompts": {},
+  "humans": {
+    "h_1b119f25eaf333": {
+      "author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
