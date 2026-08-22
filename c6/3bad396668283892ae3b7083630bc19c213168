@@ -1,0 +1,14 @@
+pom.xml
+  h_1b119f25eaf333 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c63bad396668283892ae3b7083630bc19c213168",
+  "prompts": {},
+  "humans": {
+    "h_1b119f25eaf333": {
+      "author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
