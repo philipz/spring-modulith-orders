@@ -20,7 +20,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <spring-modulith.version>2.0.7</spring-modulith.version>
+        <spring-modulith.version>2.1.0</spring-modulith.version>
         <datasource-micrometer-spring-boot.version>2.2.1</datasource-micrometer-spring-boot.version>
         <hazelcast.version>5.7.1</hazelcast.version>
         <bootstrap.version>5.3.7</bootstrap.version>
