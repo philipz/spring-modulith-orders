@@ -91,4 +91,9 @@ public class HazelcastConfig {
     public String ordersCacheName() {
         return ORDERS_CACHE_NAME;
     }
+
+    @Bean
+    public org.springframework.cache.CacheManager cacheManager(HazelcastInstance hazelcastInstance) {
+        return new com.hazelcast.spring.cache.HazelcastCacheManager(hazelcastInstance);
+    }
 }
