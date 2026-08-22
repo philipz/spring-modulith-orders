@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.util.StringUtils;
@@ -12,6 +13,12 @@ import org.springframework.util.StringUtils;
 @Configuration
 @EnableConfigurationProperties(BackfillProperties.class)
 public class OrdersBackfillConfiguration {
+
+    @Primary
+    @Bean
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
 
     @Bean(name = "legacyOrdersJdbcTemplate")
     @ConditionalOnProperty(prefix = "orders.backfill", name = "enabled", havingValue = "true")

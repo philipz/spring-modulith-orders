@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS events.event_publication (
     serialized_event TEXT NOT NULL,
     publication_date TIMESTAMP WITH TIME ZONE NOT NULL,
     completion_date TIMESTAMP WITH TIME ZONE,
+    status TEXT,
+    completion_attempts INT,
+    last_resubmission_date TIMESTAMP WITH TIME ZONE,
     PRIMARY KEY (id)
 );
 
