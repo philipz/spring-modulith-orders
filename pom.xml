@@ -169,7 +169,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-observability</artifactId>
+            <artifactId>spring-modulith-observability-core</artifactId>
             <scope>runtime</scope>
         </dependency>
 
