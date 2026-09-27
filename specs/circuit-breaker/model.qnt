@@ -1,16 +1,22 @@
-// Circuit Breaker as-is 模型（ADR-018 模型階段，2026-09-27 修復後複驗）
+// Circuit Breaker as-is 模型（ADR-018 模型階段，2026-09-27 第二次修復後複驗）
 //
 // 依 src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java 的
-// **目前 trunk 現況**建模（已含 Issue #56 的修復：半開失敗重新開路並重新計時、
-// 半開只放行一個試探請求、Closed 失敗計數依時間視窗歸零）。不變量沿用已核准的
-// invariants.qnt（本檔不重述、不修改）。
+// **目前 trunk 現況**建模，已含兩輪修復：
+//   - Issue #56：半開失敗立刻重新開路並重新起算 time-out（:114-120）、半開只放行
+//     一個試探請求（halfOpenTrialActive CAS，:188）。
+//   - Issue #73：時間來源改為可注入的 Clock（:23、:48-53）；失敗計數視窗比較改為
+//     「大於或等於」（hasFailureWindowElapsed，:153-155）；讀取計數時若視窗已過期
+//     即回傳 0（getConsecutiveFailureCount → expireElapsedFailureWindow，:275-293）。
+// 不變量沿用已核准的 invariants.qnt（本檔不重述、不修改）。
 //
 // 建模範圍（Issue #50）：
-//   executeWithFallback／executeVoidOperation（:51-91）、handleCacheError（:93-114）、
-//   registerClosedStateFailure（:122-131）、isCircuitOpen（:133-145）、
-//   shouldBypassOperation（:155-171）、checkCacheHealth（:173-188）、
-//   recordSuccess（:200-209）、resetErrorState（:222-231）、openCircuit（:233-239）、
-//   closeCircuit（:241-247）。
+//   executeWithFallback（:63-84）、executeVoidOperation（:86-103）、
+//   handleCacheError（:105-126）、registerClosedStateFailure（:137-146）、
+//   hasFailureWindowElapsed（:153-155）、isCircuitOpen（:157-170）、
+//   shouldBypassOperation（:180-197）、checkCacheHealth（:199-214）、
+//   recordSuccess（:226-235）、resetErrorState（:248-257）、openCircuit（:259-265）、
+//   closeCircuit（:267-273）、getConsecutiveFailureCount（:275-278）＋
+//   expireElapsedFailureWindow（:287-293）。
 //
 // 併發抽象（明示，並列於 PR 的「未決事項」）：
 //   - THREADS 個呼叫端各自有一個 pc（Idle／Running），可同時有多個請求在飛行中。
@@ -19,8 +25,19 @@
 //     以毫秒計的窗口（打到 Redis），也是實務上交錯會發生的地方。method 內部相鄰
 //     volatile 讀寫之間（例如 shouldBypassOperation 讀 circuitOpenedAt 與 CAS
 //     halfOpenTrialActive 之間）的奈秒級窗口**不建模**——見未決事項 1。
-//   - admittedWhileOpen 在**請求放行的當下**依當時狀態計數（Issue #50 指定；上一輪
-//     在請求結束時計數，把 Closed 放行、執行期間才開路的請求誤算成 Open 放行）。
+//   - admittedWhileOpen 在**請求放行的當下**依當時狀態計數（Issue #50 指定）。
+//
+// 失敗計數的兩層表示（#73 的核心語意，見未決事項 2）：
+//   - memoFailureCount ≙ AtomicInteger consecutiveFailures 這個**欄位**（:25）。
+//     它的歸零是惰性的：只有下一次失敗抵達（registerClosedStateFailure，:140-144）、
+//     一次讀取（expireElapsedFailureWindow，:287-293）或關路／重設才會materialize。
+//   - consecutiveFailures（invariants.qnt 的詞彙）≙ **任何讀取者實際拿到的值**。
+//     程式裡讀到這個計數的每一條路徑都會先套用視窗過期：對外只有
+//     getConsecutiveFailureCount()（:275-278，CacheHealthIndicator.java:180、
+//     OrdersInfoContributor.java:34 兩個讀取者），對內只有 registerClosedStateFailure
+//     （:140，視窗已過期時不是 +1 而是重設為 1）。因此 memoFailureCount 的舊值
+//     **沒有任何觀察者、也沒有任何判斷**看得到，等價於一個 memoization 快取。
+//   兩者都保留在狀態裡，反例的 ITF 會同時顯示，人工審查可自行比對。
 //
 // 輔助變數（規格側，程式無對應欄位）的生命週期：halfOpenAdmitted／halfOpenSuccesses／
 // halfOpenFailed／lastHalfOpenFailureAt 都是「本次 Open→Half-Open 情境」範圍的計量，
@@ -46,7 +63,7 @@ module model {
   // 受保護操作的 operationName（程式接受任意字串，取兩個代表值）。
   pure val REQUEST_OPERATIONS: Set[str] = Set("get", "put")
 
-  // checkCacheHealth 例外時 recordError 用的固定鍵（CacheErrorHandler.java:185）。
+  // checkCacheHealth 例外時 recordError 用的固定鍵（CacheErrorHandler.java:211）。
   pure val HEALTH_CHECK: str = "health-check"
 
   // errorCounts／lastErrorTimes 的鍵集合。
@@ -64,8 +81,12 @@ module model {
   // 模型專屬狀態
   // ---------------------------------------------------------------------------
 
-  // AtomicBoolean halfOpenTrialActive（CacheErrorHandler.java:27）。
+  // AtomicBoolean halfOpenTrialActive（CacheErrorHandler.java:29）。
   var halfOpenTrialActive: bool
+
+  // AtomicInteger consecutiveFailures 這個欄位的**當前記憶值**（:25）。
+  // 對外可見的計數是 consecutiveFailures（invariants.qnt），見檔頭說明。
+  var memoFailureCount: int
 
   // 每個呼叫端的位置與該請求的身分。
   var threads: int -> ThreadState
@@ -73,22 +94,45 @@ module model {
   // 稽核用：是否確實有請求在 Open 狀態下被閘門擋下走 fallback（witness 用）。
   var rejectedWhileOpen: bool
 
+  // 稽核用：是否確實發生過「視窗已過期時讀取計數」，讓 :287-293 的歸零真的 materialize。
+  var expiredWindowRead: bool
+
   // ---------------------------------------------------------------------------
-  // shouldBypassOperation()（CacheErrorHandler.java:155-171）
+  // hasFailureWindowElapsed(windowStart, now)（CacheErrorHandler.java:153-155）
+  //
+  // `Duration.between(windowStart, now).compareTo(failureWindow) >= 0`——#73 把
+  // 原本的嚴格大於改成大於或等於（恰好相隔一個視窗的兩次失敗不再併入同一視窗）。
+  // windowStart < 0 對應 firstFailureAt == null：還沒有視窗，不算過期。
   // ---------------------------------------------------------------------------
 
-  // `if (!circuitOpen) return false;`（:156-158）——Closed 一律放行。
+  pure def failureWindowElapsedAt(windowStart: int, clock: int, window: int): bool =
+    windowStart >= 0 and clock - windowStart >= window
+
+  // getConsecutiveFailureCount()（:275-278）＋ expireElapsedFailureWindow()（:287-293）：
+  // 讀取時視窗已過期就是 0。registerClosedStateFailure（:140）用的也是同一個判斷。
+  pure def observedFailureCount(memo: int, windowStart: int, clock: int, window: int): int =
+    if (failureWindowElapsedAt(windowStart, clock, window)) 0 else memo
+
+  // 當前狀態下視窗是否已過期。
+  val failureWindowElapsed: bool = failureWindowElapsedAt(windowStartedAt, now, failureWindow)
+
+  // ---------------------------------------------------------------------------
+  // shouldBypassOperation()（CacheErrorHandler.java:180-197）
+  // ---------------------------------------------------------------------------
+
+  // `if (!circuitOpen) return false;`（:181-183）——Closed 一律放行。
   val gateClosedAdmits: bool = not(circuitOpen)
 
-  // `openedAt != null && Duration.between(openedAt, now) > circuitOpenDuration`（:161）
-  // ——recovery timer 已到期；等價於 invariants.qnt 的 circuitState == HalfOpen。
+  // `openedAt != null && Duration.between(openedAt, now) > circuitOpenDuration`（:186-187）
+  // ——recovery timer 已到期（此處仍是嚴格大於，#73 只改失敗計數視窗）；
+  // 等價於 invariants.qnt 的 circuitState == HalfOpen。
   val gateTimerExpired: bool =
     circuitOpen and circuitOpenedAt >= 0 and now - circuitOpenedAt > circuitOpenDuration
 
-  // `halfOpenTrialActive.compareAndSet(false, true)`（:162）——只有搶到的那一個放行。
+  // `halfOpenTrialActive.compareAndSet(false, true)`（:188）——只有搶到的那一個放行。
   val gateTrialAdmits: bool = gateTimerExpired and not(halfOpenTrialActive)
 
-  // 閘門放行與否；其餘情況 `return true`（:167、:170）＝ bypass。
+  // 閘門放行與否；其餘情況 `return true`（:193、:196）＝ bypass。
   val gateAdmits: bool = gateClosedAdmits or gateTrialAdmits
 
   // ---------------------------------------------------------------------------
@@ -104,10 +148,20 @@ module model {
     totalCircuitOpenings' = totalCircuitOpenings,
   }
 
-  action keepFailureWindow: bool = all {
-    consecutiveFailures' = consecutiveFailures,
-    windowStartedAt' = windowStartedAt,
+  // 失敗計數的唯一寫入口：欄位記憶值、視窗起點，以及由兩者＋時鐘推得的**可見計數**
+  // 一起賦值，保證模型裡的 consecutiveFailures 永遠等於讀取者會拿到的值。
+  action setFailureWindow(memo: int, windowStart: int, clock: int): bool = all {
+    memoFailureCount' = memo,
+    windowStartedAt' = windowStart,
+    consecutiveFailures' = observedFailureCount(memo, windowStart, clock, failureWindow),
   }
+
+  // 不動失敗計數的步驟（時鐘也沒變）。
+  action keepFailureWindow: bool = setFailureWindow(memoFailureCount, windowStartedAt, now)
+
+  // `consecutiveFailures.set(0); firstFailureAt = null;`（recordSuccess :227-228、
+  // closeCircuit :269-270、resetErrorState :249-250）。
+  action clearFailureWindow: bool = setFailureWindow(0, neverOpened, now)
 
   action keepHalfOpenAux: bool = all {
     halfOpenSuccesses' = halfOpenSuccesses,
@@ -125,11 +179,13 @@ module model {
   action keepAudit: bool = all {
     admittedWhileOpen' = admittedWhileOpen,
     rejectedWhileOpen' = rejectedWhileOpen,
+    expiredWindowRead' = expiredWindowRead,
   }
 
   action keepThreads: bool = threads' = threads
 
-  // openCircuit()（:233-239）：開路、重新起算 time-out、釋放試探名額、累計開路次數。
+  // openCircuit()（:259-265）：開路、重新起算 time-out、釋放試探名額、累計開路次數。
+  // **不動** consecutiveFailures／firstFailureAt（程式同樣沒有動）。
   // 同時讓「本次 Open 情境」的輔助計量歸零。
   action doOpenCircuit: bool = all {
     circuitOpen' = true,
@@ -148,9 +204,8 @@ module model {
     circuitOpen' = false,
     circuitOpenedAt' = neverOpened,
     now' = 0,
-    consecutiveFailures' = 0,
-    // firstFailureAt == null（CacheErrorHandler.java:24）。
-    windowStartedAt' = neverOpened,
+    // consecutiveFailures == 0（:25）、firstFailureAt == null（:26）。
+    setFailureWindow(0, neverOpened, 0),
     halfOpenSuccesses' = 0,
     halfOpenAdmitted' = 0,
     halfOpenFailed' = false,
@@ -163,10 +218,11 @@ module model {
     halfOpenTrialActive' = false,
     threads' = THREADS.mapBy(_ => IDLE_THREAD),
     rejectedWhileOpen' = false,
+    expiredWindowRead' = false,
   }
 
   // ---------------------------------------------------------------------------
-  // 時間推進（LocalDateTime.now()）
+  // 時間推進（LocalDateTime.now(clock)；#73 起時鐘可注入，:23）
   // ---------------------------------------------------------------------------
 
   // 這一刻之後 recovery timer 是否已到期（Open 期滿 → Half-Open 情境）。
@@ -175,20 +231,22 @@ module model {
 
   action tick: bool = all {
     now' = now + 1,
+    // 時間推進本身就可能讓失敗計數視窗過期——欄位記憶值不動，但下一刻任何讀取
+    // 都會拿到 0（:275-293）。
+    setFailureWindow(memoFailureCount, windowStartedAt, now + 1),
     // Open 期滿：上一次 Half-Open 失敗所要求的「回到 Open」已履行完畢。
     halfOpenFailed' = if (timerExpiresAfterTick) false else halfOpenFailed,
     halfOpenSuccesses' = halfOpenSuccesses,
     halfOpenAdmitted' = halfOpenAdmitted,
     lastHalfOpenFailureAt' = lastHalfOpenFailureAt,
     keepBreaker,
-    keepFailureWindow,
     keepErrorStats,
     keepAudit,
     keepThreads,
   }
 
   // ---------------------------------------------------------------------------
-  // executeWithFallback／executeVoidOperation（:51-91）
+  // executeWithFallback／executeVoidOperation（:63-103）
   // ---------------------------------------------------------------------------
 
   // 閘門放行：請求進入受保護操作。circuitOpen 為真時走的是 half-open 試探路徑。
@@ -199,12 +257,13 @@ module model {
       REQUEST_OPERATIONS.contains(op),
       gateAdmits,
       threads' = threads.put(t, { pc: Running, op: op, trial: trial }),
-      // compareAndSet(false, true) 成功（:162）。
+      // compareAndSet(false, true) 成功（:188）。
       halfOpenTrialActive' = (trial or halfOpenTrialActive),
       // 放行「當下」的狀態決定計量歸屬（Issue #50）。
       halfOpenAdmitted' = if (circuitState == HalfOpen) halfOpenAdmitted + 1 else halfOpenAdmitted,
       admittedWhileOpen' = if (circuitState == Open) admittedWhileOpen + 1 else admittedWhileOpen,
       rejectedWhileOpen' = rejectedWhileOpen,
+      expiredWindowRead' = expiredWindowRead,
       circuitOpen' = circuitOpen,
       circuitOpenedAt' = circuitOpenedAt,
       totalCircuitOpenings' = totalCircuitOpenings,
@@ -217,7 +276,7 @@ module model {
     }
   }
 
-  // 閘門擋下（:56-61、:75-80）：recordError("Circuit breaker open")＋建議 fallback，
+  // 閘門擋下（:68-73、:87-92）：recordError("Circuit breaker open")＋建議 fallback，
   // 不執行受保護操作，呼叫立刻返回（呼叫端回到 Idle）。
   action rejectRequest(t: int, op: str): bool = all {
     threads.get(t).pc == Idle,
@@ -228,6 +287,7 @@ module model {
     fallbackRecommendations' = fallbackRecommendations + 1,
     rejectedWhileOpen' = (rejectedWhileOpen or circuitState == Open),
     admittedWhileOpen' = admittedWhileOpen,
+    expiredWindowRead' = expiredWindowRead,
     keepClock,
     keepBreaker,
     keepFailureWindow,
@@ -236,17 +296,17 @@ module model {
   }
 
   // ---------------------------------------------------------------------------
-  // recordSuccess(operationName)（:200-209）
+  // recordSuccess(operationName)（:226-235）
   // ---------------------------------------------------------------------------
 
   action finishSuccess(t: int): bool = {
     val th = threads.get(t)
-    // `if (circuitOpen) { closeCircuit(); }`（:205-208）。
+    // `if (circuitOpen) { closeCircuit(); }`（:231-234）。
     val closes = circuitOpen
     all {
       th.pc == Running,
-      consecutiveFailures' = 0,
-      windowStartedAt' = neverOpened,
+      // `consecutiveFailures.set(0); firstFailureAt = null;`（:227-228）。
+      clearFailureWindow,
       errorCounts' = errorCounts.put(th.op, 0),
       lastErrorTimes' = lastErrorTimes.put(th.op, neverOpened),
       // Half-Open 試探成功才是規格說的 successful consecutive invocation。
@@ -266,12 +326,12 @@ module model {
   }
 
   // ---------------------------------------------------------------------------
-  // handleCacheError(exception, operationName, key)（:93-114）
+  // handleCacheError(exception, operationName, key)（:105-126）
   // ---------------------------------------------------------------------------
 
-  // `if (circuitOpen) { openCircuit(); return; }`（:102-108，#56 的修復）：
+  // `if (circuitOpen) { openCircuit(); return; }`（:114-120，#56 的修復）：
   // 失敗發生時電路仍在 Open／Half-Open 路徑上 → 立刻重新開路並重新起算 time-out，
-  // 不動 Closed 的失敗計數。
+  // 不動 Closed 的失敗計數與視窗起點。
   action failWhileOpenPath(t: int): bool = {
     val th = threads.get(t)
     all {
@@ -283,8 +343,7 @@ module model {
       doOpenCircuit,
       halfOpenFailed' = (th.trial or halfOpenFailed),
       lastHalfOpenFailureAt' = if (th.trial) now else lastHalfOpenFailureAt,
-      consecutiveFailures' = consecutiveFailures,
-      windowStartedAt' = windowStartedAt,
+      keepFailureWindow,
       threads' = threads.put(t, IDLE_THREAD),
       keepClock,
       keepAudit,
@@ -292,12 +351,14 @@ module model {
   }
 
   // `int failures = registerClosedStateFailure(); if (failures >= failureThreshold)`
-  // （:110-113 ＋ :122-131）：失敗發生時電路是 Closed。時間視窗以 firstFailureAt
-  // 為錨點，**只有新的失敗抵達時**才可能重設（`elapsed > failureWindow`）。
+  // （:122-125 ＋ :137-146）：失敗發生時電路是 Closed。視窗以 firstFailureAt 為錨點，
+  // `windowStart == null || hasFailureWindowElapsed(windowStart, now)` 成立時整段重設
+  // 為「這一次失敗開啟的新視窗」（計數 1、錨點 now）。#73 起邊界含等於。
   action failWhileClosed(t: int): bool = {
     val th = threads.get(t)
-    val windowExpired = windowStartedAt < 0 or now - windowStartedAt > failureWindow
-    val failures = if (windowExpired) 1 else consecutiveFailures + 1
+    val windowExpired = windowStartedAt < 0 or now - windowStartedAt >= failureWindow
+    // `consecutiveFailures.set(1); return 1;`（:142-143）／`incrementAndGet()`（:145）。
+    val failures = if (windowExpired) 1 else memoFailureCount + 1
     val opens = failures >= failureThreshold
     all {
       th.pc == Running,
@@ -305,8 +366,7 @@ module model {
       errorCounts' = errorCounts.put(th.op, errorCounts.get(th.op) + 1),
       lastErrorTimes' = lastErrorTimes.put(th.op, now),
       fallbackRecommendations' = fallbackRecommendations + 1,
-      consecutiveFailures' = failures,
-      windowStartedAt' = if (windowExpired) now else windowStartedAt,
+      setFailureWindow(failures, if (windowExpired) now else windowStartedAt, now),
       circuitOpen' = opens,
       circuitOpenedAt' = if (opens) now else circuitOpenedAt,
       halfOpenTrialActive' = if (opens) false else halfOpenTrialActive,
@@ -322,17 +382,40 @@ module model {
   }
 
   // ---------------------------------------------------------------------------
-  // checkCacheHealth(healthCheck)（:173-188）
+  // getConsecutiveFailureCount()（:275-278）→ expireElapsedFailureWindow()（:287-293）
+  //
+  // #73 新增的讀取路徑：CacheHealthIndicator.java:180 與 OrdersInfoContributor.java:34
+  // 都走這裡。視窗已過期時把欄位與錨點一起歸零（materialize），否則什麼都不動。
+  // 對可見計數 consecutiveFailures 沒有影響——它本來就已經是過期即 0 的值。
   // ---------------------------------------------------------------------------
 
-  // healthCheck 回 true → closeCircuit()（:175-178）；程式不檢查當下狀態，
+  action readFailureCount: bool = all {
+    setFailureWindow(
+      if (failureWindowElapsed) 0 else memoFailureCount,
+      if (failureWindowElapsed) neverOpened else windowStartedAt,
+      now,
+    ),
+    expiredWindowRead' = (expiredWindowRead or failureWindowElapsed),
+    admittedWhileOpen' = admittedWhileOpen,
+    rejectedWhileOpen' = rejectedWhileOpen,
+    keepClock,
+    keepBreaker,
+    keepHalfOpenAux,
+    keepErrorStats,
+    keepThreads,
+  }
+
+  // ---------------------------------------------------------------------------
+  // checkCacheHealth(healthCheck)（:199-214）
+  // ---------------------------------------------------------------------------
+
+  // healthCheck 回 true → closeCircuit()（:201-204）；程式不檢查當下狀態，
   // 即使電路本來就是 Closed 也會把計數與計時器清乾淨。
   action healthCheckPass: bool = all {
     circuitOpen' = false,
     circuitOpenedAt' = neverOpened,
     halfOpenTrialActive' = false,
-    consecutiveFailures' = 0,
-    windowStartedAt' = neverOpened,
+    clearFailureWindow,
     halfOpenAdmitted' = 0,
     halfOpenFailed' = false,
     lastHalfOpenFailureAt' = neverOpened,
@@ -344,7 +427,7 @@ module model {
     keepThreads,
   }
 
-  // healthCheck 丟例外 → 只 recordError("health-check")（:183-187）；電路狀態不變。
+  // healthCheck 丟例外 → 只 recordError("health-check")（:209-213）；電路狀態不變。
   // （healthCheck 回 false 只寫 log、不改任何狀態，模型不另設步驟。）
   action healthCheckThrows: bool = all {
     errorCounts' = errorCounts.put(HEALTH_CHECK, errorCounts.get(HEALTH_CHECK) + 1),
@@ -359,12 +442,11 @@ module model {
   }
 
   // ---------------------------------------------------------------------------
-  // resetErrorState()（:222-231）；totalCircuitOpenings 不在重設範圍內。
+  // resetErrorState()（:248-257）；totalCircuitOpenings 不在重設範圍內。
   // ---------------------------------------------------------------------------
 
   action resetState: bool = all {
-    consecutiveFailures' = 0,
-    windowStartedAt' = neverOpened,
+    clearFailureWindow,
     circuitOpen' = false,
     circuitOpenedAt' = neverOpened,
     halfOpenTrialActive' = false,
@@ -394,6 +476,7 @@ module model {
       finishSuccess(t),
       failWhileOpenPath(t),
       failWhileClosed(t),
+      readFailureCount,
       healthCheckPass,
       healthCheckThrows,
       resetState,
@@ -423,6 +506,16 @@ module model {
   // 起點起算已經整整經過一個計數視窗（時間確實推進到「該自動歸零」的時點）。
   val WIT_failureWindowFullyElapsed: bool =
     circuitState == Closed and windowStartedAt >= 0 and now - windowStartedAt >= failureWindow
+
+  // INV_closedFailureCounterResetsPeriodically（#73 的語意）：欄位記憶值還留著舊的
+  // 非零計數，而視窗已經走完——此時讀取者拿到的計數是 0。描述的是「過期即 0」
+  // 這個修復行為確實被觸及的情境。
+  val WIT_staleMemoReadsAsZero: bool =
+    memoFailureCount > 0 and failureWindowElapsed and consecutiveFailures == 0
+
+  // INV_closedFailureCounterResetsPeriodically（#73 的讀取路徑）：確實有讀取者在視窗
+  // 過期後呼叫 getConsecutiveFailureCount()，讓 :287-293 的歸零真的寫回欄位。
+  val WIT_expiredWindowMaterializedByRead: bool = expiredWindowRead
 
   // INV_halfOpenBoundedRequests：Half-Open 期間確實有試探請求被放行到受保護操作。
   val WIT_halfOpenAdmitsTrial: bool = circuitState == HalfOpen and halfOpenAdmitted > 0
