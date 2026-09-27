@@ -12,6 +12,12 @@
 # 全部檢查採 mode: run（隨機模擬）。mode: verify 需要 Apalache，本環境無法安裝
 # （`quint verify` 在 $HOME/.quint 解壓時 EACCES，實測退出碼 1），量不到的數字不宣告
 # ——見 docs/specs/circuit-breaker-model.md「量測與限制」。
+#
+# 2026-09-27 不變量重做後複驗（PR #79）：INV_openRequiresThresholdReached 改為轉移性質，
+# 本檔為它補上兩條 witness。witness 的掛載位置**依實測可達性**決定（不可達的 witness 會
+# 讓 CI 判為假綠燈）：WIT_trialFailureReopenedCircuit 只在 cb_t1_d1_w2 可達
+# （circuitOpenDuration=1、failureThreshold=1，24 步內能走完「開路→期滿→試探→失敗重開」；
+# 實測 45/20000 = 0.22%），其餘三個實例在 max_steps=24 下為 0/20000，故不掛載。
 
 instances:
   - module: cb_t1_d1_w2
@@ -112,16 +118,18 @@ checks:
   - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_closedAccumulatesFailures] }
 
-  # INV_openRequiresThresholdReached — 開路必須是失敗達門檻的結果。含單執行緒實例
-  # （cb_t2_d3_w4_c1），以區分候選發現是否依賴併發交錯。
+  # INV_openRequiresThresholdReached — Closed → Open 的轉移必須是失敗達門檻的結果
+  # （PR #79 的轉移性質寫法）。含單執行緒實例（cb_t2_d3_w4_c1），以區分候選發現是否依賴
+  # 併發交錯。cb_t1_d1_w2 另掛「門檻豁免路徑確實走到過」的 witness，確認不變量的成立
+  # 不是因為 Half-Open 試探失敗重新開路那個分支從未執行。
   - { instance: cb_t1_d1_w2, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded, WIT_trialFailureReopenedCircuit] }
   - { instance: cb_t2_d2_w3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
   - { instance: cb_t3_d1_w2_c3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
   - { instance: cb_t2_d3_w4_c1, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
 
   # INV_closedFailureCounterResetsPeriodically — 時間視窗到期後失敗計數是否自動歸零。
   # 三個實例都涵蓋（含單執行緒 cb_t2_d3_w4_c1）。witness 除了「視窗確實走完」之外，
