@@ -16,7 +16,6 @@ import com.sivalabs.bookstore.orders.api.model.OrderStatus;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -262,7 +261,6 @@ class OrderServiceUnitTests {
         }
 
         @Test
-        @Disabled("Red until issue #57 impl lands: updateOrderStatus currently performs every transition")
         @DisplayName("Disallowed transitions throw IllegalStateException and never save")
         void disallowedTransitionsThrowAndNeverSave() {
             for (OrderStatus from : OrderStatus.values()) {
@@ -285,7 +283,6 @@ class OrderServiceUnitTests {
         }
 
         @Test
-        @Disabled("Red until issue #57 impl lands: terminal states currently accept transitions")
         @DisplayName("Terminal states DELIVERED, CANCELLED, ERROR reject every transition")
         void terminalStatesRejectEveryTransition() {
             for (OrderStatus terminal :
@@ -305,7 +302,6 @@ class OrderServiceUnitTests {
         }
 
         @Test
-        @Disabled("Red until issue #57 impl lands: same-value writes currently pass through")
         @DisplayName("Same-value writes such as PENDING to PENDING are rejected")
         void sameValueWritesAreRejected() {
             for (OrderStatus status : OrderStatus.values()) {
@@ -322,7 +318,6 @@ class OrderServiceUnitTests {
         }
 
         @Test
-        @Disabled("Red until issue #57 impl lands: createOrder currently accepts any initial status")
         @DisplayName("createOrder rejects every initial status other than NEW and never saves")
         void createOrderRejectsNonNewInitialStatus() {
             for (OrderStatus status : OrderStatus.values()) {
