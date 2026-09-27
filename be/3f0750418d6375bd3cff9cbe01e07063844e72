@@ -1,0 +1,44 @@
+src/test/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicatorTests.java
+  s_481815ec5a659d::t_586423b09af4d3 7,12,80-101
+  s_481815ec5a659d::t_9262bbf71bc267 102
+src/main/java/com/sivalabs/bookstore/orders/config/GrpcServerConfiguration.java
+  s_481815ec5a659d::t_50418044c714e2 3,6-7,12,33-36
+  s_481815ec5a659d::t_32c0142a480684 37-38
+src/main/java/com/sivalabs/bookstore/orders/config/HazelcastConfig.java
+  s_481815ec5a659d::t_c20ffb5cae3173 38-39
+src/main/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicator.java
+  s_481815ec5a659d::t_4281bcb9496bd1 29-30,152-156
+src/test/java/com/sivalabs/bookstore/orders/infrastructure/catalog/HttpProductCatalogClientTests.java
+  s_481815ec5a659d::t_04d48bbbe03961 1-22,25,32-37,41-52,56-57,59-60
+  s_481815ec5a659d::t_26a8d860dcb9e3 23-24,38-40,53-55
+  s_481815ec5a659d::t_4d54ded1e1aff7 58
+  s_481815ec5a659d::t_9aa6bae7fba3f0 26-31
+docker-compose.yml
+  s_481815ec5a659d::t_077efaa9a5551d 1-33,42-43
+  s_481815ec5a659d::t_19a29ec2c33960 34-41
+src/test/java/com/sivalabs/bookstore/orders/client/OrdersGrpcServiceNetworkIntegrationTest.java
+  s_481815ec5a659d::t_c3a389846fab15 14,32,110-112,144-149
+  s_481815ec5a659d::t_f1b992667a0952 150-151
+src/main/java/com/sivalabs/bookstore/orders/config/GrpcHealthIndicator.java
+  s_481815ec5a659d::t_50418044c714e2 3,42
+docker/catalog-stub/mappings/products.json
+  s_481815ec5a659d::t_19a29ec2c33960 1-33
+src/main/java/com/sivalabs/bookstore/orders/infrastructure/catalog/HttpProductCatalogClient.java
+  s_481815ec5a659d::t_e6f3c5ac388a18 27,29-30,55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be3f0750418d6375bd3cff9cbe01e07063844e72",
+  "prompts": {},
+  "sessions": {
+    "s_481815ec5a659d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abb00e25-3c88-4383-afe0-9f4acda6954a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
