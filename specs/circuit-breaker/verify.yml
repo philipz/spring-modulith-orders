@@ -136,32 +136,41 @@ checks:
   # 另外兩條對準 #73 的兩個語意：欄位還留著舊計數但讀取拿到 0，以及讀取確實把歸零
   # 寫回欄位（expireElapsedFailureWindow）。
   - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
   - { instance: cb_t3_d1_w2_c3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
   - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
 
   # INV_halfOpenBoundedRequests — Half-Open 放行的請求數上限。
+  # cb_t3_d1_w2_c3（門檻 3、3 個呼叫端）要湊滿 3 次失敗才會開路，Half-Open 放行是稀有
+  # 事件：24 步／20000 抽樣只中 1 次（等於隨機種子一換就可能是 0）。實測放大到
+  # 40 步／100000 抽樣後為 19 次、牆鐘 61 秒 → 採用放大後的設定。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_halfOpenAdmitsTrial] }
-  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_halfOpenAdmitsTrial] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_halfOpenAdmitsTrial] }
 
   # INV_halfOpenClosesAfterSuccessThreshold — 回到 Closed 前的連續成功次數。
+  # cb_t2_d3_w4_c1 是單執行緒且 time-out 3，24 步內湊不到「開路→期滿→試探成功→關路」；
+  # 實測 40 步／20000 抽樣為 6 次、牆鐘 15 秒（24 步時為 0）→ 加深步數。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_trialSuccessClosedCircuit] }
-  - { instance: cb_t2_d3_w4_c1, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 24, max_samples: 20000,
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 40, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_trialSuccessClosedCircuit] }
 
   # INV_halfOpenFailureReopens — 試探請求失敗後是否回到 Open。
+  # cb_t3_d1_w2_c3 同上（門檻 3）：24 步／20000 與 40 步／20000 都是 0；
+  # 實測 40 步／100000 為 4 次、牆鐘 61 秒 → 採用放大後的設定。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_halfOpenTrialFailed] }
-  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_halfOpenTrialFailed] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_halfOpenTrialFailed] }
 
   # INV_halfOpenFailureRestartsTimer — 試探失敗後 time-out 計時器是否重新起算。
+  # cb_t2_d2_w3 在 24 步／20000 只中 2 次（過於脆弱）；實測 40 步／100000 為 13 次、
+  # 牆鐘 57 秒 → 採用放大後的設定。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_timerRunningAfterTrialFailure] }
-  - { instance: cb_t2_d2_w3, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 24, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_timerRunningAfterTrialFailure] }
+  - { instance: cb_t2_d2_w3, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_timerRunningAfterTrialFailure] }
