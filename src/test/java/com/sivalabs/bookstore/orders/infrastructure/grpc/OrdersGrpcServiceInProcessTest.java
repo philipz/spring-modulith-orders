@@ -25,9 +25,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -66,7 +66,8 @@ class OrdersGrpcServiceInProcessTest {
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(POSTGRES_IMAGE)
             .withDatabaseName("bookstore")
             .withUsername("bookstore")
-            .withPassword("bookstore");
+            .withPassword("bookstore")
+            .withInitScript("db/test-init.sql");
 
     @DynamicPropertySource
     static void registerDataSourceProperties(DynamicPropertyRegistry registry) {
@@ -81,10 +82,10 @@ class OrdersGrpcServiceInProcessTest {
         registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> "false");
     }
 
-    @MockBean
+    @MockitoBean
     private ConnectionFactory connectionFactory;
 
-    @MockBean
+    @MockitoBean
     private com.sivalabs.bookstore.orders.domain.ProductCatalogPort productCatalogPort;
 
     @Autowired

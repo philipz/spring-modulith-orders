@@ -22,11 +22,11 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -40,9 +40,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
             "orders.backfill.enabled=true",
             "orders.backfill.lookback-days=0",
             "orders.backfill.record-limit=50",
-            "spring.liquibase.drop-first=true",
-            "spring.liquibase.contexts=",
-            "spring.autoconfigure.exclude=org.springframework.modulith.events.jdbc.JdbcEventPublicationAutoConfiguration",
             "grpc.client.orders.enabled=false"
         })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -63,7 +60,8 @@ class OrdersBackfillIntegrationTests {
     static final PostgreSQLContainer<?> targetDb = new PostgreSQLContainer<>("postgres:17-alpine")
             .withDatabaseName("ordersdb")
             .withUsername("orders")
-            .withPassword("orders");
+            .withPassword("orders")
+            .withInitScript("db/test-init.sql");
 
     @DynamicPropertySource
     static void registerDatasourceProperties(DynamicPropertyRegistry registry) {
@@ -86,7 +84,7 @@ class OrdersBackfillIntegrationTests {
         registry.add("grpc.server.port", () -> -1);
     }
 
-    @MockBean
+    @MockitoBean
     private OrdersBackfillRunner ordersBackfillRunner;
 
     @Autowired
