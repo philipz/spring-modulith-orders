@@ -30,10 +30,10 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -111,10 +111,10 @@ class OrdersGrpcServiceNetworkIntegrationTest {
     @Autowired
     private OrderService orderService;
 
-    @MockBean
+    @MockitoBean
     private ConnectionFactory connectionFactory;
 
-    @MockBean
+    @MockitoBean
     private ProductCatalogPort productCatalogPort;
 
     private OrderEntity testOrder;
