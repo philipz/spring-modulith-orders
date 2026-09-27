@@ -1,5 +1,5 @@
 <!-- factory:source-snapshot（ADR-018）：由 CI 寫入，不得修改；不變量須逐字引用本檔 -->
-<!-- 來源：docs/specs/circuit-breaker.md @ 67440c0690af99f86263070b06449c5f77558e18 · 擷取：2026-09-27T01:27:13.858Z -->
+<!-- 來源：docs/specs/circuit-breaker.md @ 401054ed7ae2e3bfba8089e7293cf9d88ce0b22e · 擷取：2026-09-27T09:23:57.258Z -->
 
 <!--
 規格來源存檔（ADR-018 §5：write-spec 的規格來源必須是 repo 內固定內容，供不變量逐字引用）
