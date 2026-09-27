@@ -3,7 +3,8 @@
 // 每個模組把 model.qnt 的常數固定成一組具體設定。設定範圍以**程式實際接受的輸入**
 // 為準（每個常數的出處見 verify.yml 的 domain_justification）：
 //   - failureThreshold、circuitOpenDuration、failureWindow 由 @Value 注入
-//     （CacheErrorHandler.java:34-41），程式沒有任何範圍檢查 → 涵蓋邊界值與奇偶。
+//     （CacheErrorHandler.java:36-41 委派到 :48-53 的建構子），程式沒有任何範圍檢查
+//     → 涵蓋邊界值與奇偶。
 //   - THREADS 是併發呼叫端，程式未限制數量 → 涵蓋 2 與 3。
 //   - successThreshold、maxHalfOpenRequests 程式無對應設定 → 依 Issue #50 採規格
 //     最小合法值 1。
