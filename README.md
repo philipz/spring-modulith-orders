@@ -35,6 +35,7 @@ Spring Modulith Orders 服務是以 Spring Boot 3.5 為基礎的訂單子系統�
 - `./mvnw -Dgroups=lightweight test`：如偏好輕量測試流程，可參考 `lightweight-test-example.md` 中提供的分類範例。
 
 ## 延伸文件
+- `docs/orders-optimistic-locking.md`：訂單並行更新的樂觀鎖設計與呼叫端須知
 - `README-OpenAPI.md`：REST 與 gRPC API 說明
 - `README-deployment.md`：部署建議與觀察性設定
 - `AGENTS.md`：貢獻者指南、程式碼風格與 PR 建議
