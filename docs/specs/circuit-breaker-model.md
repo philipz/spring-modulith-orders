@@ -9,6 +9,13 @@
 > 大於或等於（`hasFailureWindowElapsed` :153-155）、**讀取計數時若視窗已過期即回傳 0**
 > （`getConsecutiveFailureCount` → `expireElapsedFailureWindow`，:275-293）。本文件與
 > `model.qnt` 依**目前 trunk 的程式**重建，取代上一輪（PR #71）的模型。
+>
+> **2026-09-27 不變量重做後複驗（本輪，PR #79 之後）**：上一輪（PR #78）唯一的候選發現
+> `INV_openRequiresThresholdReached` 經**人工裁定為不變量寫法過強**——引文規定的是
+> Closed → Open **轉移當下**的條件，不是整段 Open 期間的狀態條件。人類據此重跑不變量階段
+> 並只改寫該條（PR #79），同時在 `invariants.qnt` 新增 `var failuresAtLastOpening`。
+> **`CacheErrorHandler` 本輪沒有任何變更**（最後一次修改仍是 #73），因此本輪的模型變更
+> **只有 ghost 變數的維護與 witness**，所有描述程式行為的 action 逐字沿用 PR #78。
 
 ## 建模對象
 
