@@ -5,95 +5,95 @@
 #
 # 建模規則 1（Q21）：設定範圍以**程式實際接受的輸入**為準。failureThreshold、
 # circuitOpenDuration、failureWindow 三個常數由 @Value 注入且程式沒有任何範圍檢查
-# （建構子 CacheErrorHandler.java:34-41 直接賦值），因此實例涵蓋邊界值與奇偶；
-# 併發呼叫端數量（THREADS）程式同樣未限制，涵蓋 1（無併發）、2、3。
+# （建構子 CacheErrorHandler.java:36-41 委派到 :48-53，直接賦值），因此實例涵蓋邊界值
+# 與奇偶；併發呼叫端數量（THREADS）程式同樣未限制，涵蓋 1（無併發）、2、3。
 # successThreshold／maxHalfOpenRequests 程式無對應設定，依 Issue #50 採規格最小合法值。
 #
 # 全部檢查採 mode: run（隨機模擬）。mode: verify 需要 Apalache，本環境無法安裝
-# （`quint verify` 在 $HOME/.quint 解壓時 EACCES，實測退出碼 1、牆鐘 2.07s），
-# 量不到的數字不宣告——見 docs/specs/circuit-breaker-model.md「量測與限制」。
+# （`quint verify` 在 $HOME/.quint 解壓時 EACCES，實測退出碼 1），量不到的數字不宣告
+# ——見 docs/specs/circuit-breaker-model.md「量測與限制」。
 
 instances:
   - module: cb_t1_d1_w2
     constants:
       failureThreshold:
         value: "1"
-        domain_justification: "src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java:35 @Value 注入 int，建構子 :38 直接賦值、程式未限制範圍；取邊界值 1（首次失敗即開路）"
+        domain_justification: "src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java:37 @Value 注入 int，建構子 :49 直接賦值、程式未限制範圍；取邊界值 1（首次失敗即開路）"
       successThreshold:
         value: "1"
-        domain_justification: "程式無對應設定——recordSuccess :205-208 單次成功即 closeCircuit；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定——recordSuccess :226-235 單次成功即 closeCircuit；Issue #50 指定採規格最小合法值 1"
       circuitOpenDuration:
         value: "1"
-        domain_justification: "CacheErrorHandler.java:36 @Value 注入 long（ms），:39 Duration.ofMillis 直接轉換、程式未限制範圍；邏輯時鐘取邊界值 1"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long（ms），:50 Duration.ofMillis 直接轉換、程式未限制範圍；邏輯時鐘取邊界值 1"
       failureWindow:
         value: "2"
-        domain_justification: "CacheErrorHandler.java:37 @Value 注入 long（ms），:40 直接轉換、程式未限制範圍；取偶數 2"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long（ms），:51 直接轉換、程式未限制範圍；取偶數 2"
       maxHalfOpenRequests:
         value: "1"
-        domain_justification: "程式無對應設定——以 AtomicBoolean halfOpenTrialActive（:27、:162 compareAndSet）結構上只放行 1 個試探請求；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定——以 AtomicBoolean halfOpenTrialActive（:29、:188 compareAndSet）結構上只放行 1 個試探請求；Issue #50 指定採規格最小合法值 1"
       THREADS:
         value: "Set(1, 2)"
-        domain_justification: "CacheErrorHandler 是 @Component 單例（:14-15），任何執行緒都可呼叫、程式未限制併發數；取 2 個併發呼叫端"
+        domain_justification: "CacheErrorHandler 是 @Component 單例（:15-16），任何執行緒都可呼叫、程式未限制併發數；取 2 個併發呼叫端"
   - module: cb_t2_d2_w3
     constants:
       failureThreshold:
         value: "2"
-        domain_justification: "CacheErrorHandler.java:35 @Value 注入 int、程式未限制範圍；取偶數 2 涵蓋 parity"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取偶數 2 涵蓋 parity"
       successThreshold:
         value: "1"
-        domain_justification: "程式無對應設定（recordSuccess :205-208 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
       circuitOpenDuration:
         value: "2"
-        domain_justification: "CacheErrorHandler.java:36 @Value 注入 long、程式未限制範圍；取偶數 2 涵蓋 parity"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取偶數 2 涵蓋 parity"
       failureWindow:
         value: "3"
-        domain_justification: "CacheErrorHandler.java:37 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
       maxHalfOpenRequests:
         value: "1"
-        domain_justification: "程式無對應設定（halfOpenTrialActive :27、:162 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
       THREADS:
         value: "Set(1, 2)"
-        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :14-15）；取 2 個併發呼叫端"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取 2 個併發呼叫端"
   - module: cb_t3_d1_w2_c3
     constants:
       failureThreshold:
         value: "3"
-        domain_justification: "CacheErrorHandler.java:35 @Value 注入 int、程式未限制範圍；取奇數 3 涵蓋 parity"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取奇數 3 涵蓋 parity"
       successThreshold:
         value: "1"
-        domain_justification: "程式無對應設定（recordSuccess :205-208 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
       circuitOpenDuration:
         value: "1"
-        domain_justification: "CacheErrorHandler.java:36 @Value 注入 long、程式未限制範圍；取邊界值 1"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取邊界值 1"
       failureWindow:
         value: "2"
-        domain_justification: "CacheErrorHandler.java:37 @Value 注入 long、程式未限制範圍；取偶數 2"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取偶數 2"
       maxHalfOpenRequests:
         value: "1"
-        domain_justification: "程式無對應設定（halfOpenTrialActive :27、:162 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
       THREADS:
         value: "Set(1, 2, 3)"
-        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :14-15）；取 3 個併發呼叫端，涵蓋奇數與更深的交錯"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取 3 個併發呼叫端，涵蓋奇數與更深的交錯"
   - module: cb_t2_d3_w4_c1
     constants:
       failureThreshold:
         value: "2"
-        domain_justification: "CacheErrorHandler.java:35 @Value 注入 int、程式未限制範圍；取偶數 2"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取偶數 2"
       successThreshold:
         value: "1"
-        domain_justification: "程式無對應設定（recordSuccess :205-208 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
       circuitOpenDuration:
         value: "3"
-        domain_justification: "CacheErrorHandler.java:36 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
       failureWindow:
         value: "4"
-        domain_justification: "CacheErrorHandler.java:37 @Value 注入 long、程式未限制範圍；取偶數 4"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取偶數 4"
       maxHalfOpenRequests:
         value: "1"
-        domain_justification: "程式無對應設定（halfOpenTrialActive :27、:162 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
       THREADS:
         value: "Set(1)"
-        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :14-15）；取邊界值 1＝完全沒有併發，用來區分「只有交錯才出現」與「單執行緒就出現」的候選發現"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取邊界值 1＝完全沒有併發，用來區分「只有交錯才出現」與「單執行緒就出現」的候選發現"
 
 checks:
   # INV_openRejectsOperation — Open 期間閘門是否真的一個請求都不放行。
@@ -112,22 +112,27 @@ checks:
   - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_closedAccumulatesFailures] }
 
-  # INV_openRequiresThresholdReached — 開路必須是失敗達門檻的結果。
+  # INV_openRequiresThresholdReached — 開路必須是失敗達門檻的結果。含單執行緒實例
+  # （cb_t2_d3_w4_c1），以區分候選發現是否依賴併發交錯。
   - { instance: cb_t1_d1_w2, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
   - { instance: cb_t2_d2_w3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
   - { instance: cb_t3_d1_w2_c3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit] }
 
   # INV_closedFailureCounterResetsPeriodically — 時間視窗到期後失敗計數是否自動歸零。
-  # 三個實例都涵蓋（含單執行緒 cb_t2_d3_w4_c1），以區分交錯造成與單執行緒即存在。
+  # 三個實例都涵蓋（含單執行緒 cb_t2_d3_w4_c1）。witness 除了「視窗確實走完」之外，
+  # 另外兩條對準 #73 的兩個語意：欄位還留著舊計數但讀取拿到 0，以及讀取確實把歸零
+  # 寫回欄位（expireElapsedFailureWindow）。
   - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed] }
+      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
   - { instance: cb_t3_d1_w2_c3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed] }
+      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
   - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
-      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed] }
+      timeout_seconds: 40, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
 
   # INV_halfOpenBoundedRequests — Half-Open 放行的請求數上限。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 24, max_samples: 20000,
