@@ -1,5 +1,6 @@
 package com.sivalabs.bookstore.orders.domain;
 
+import com.sivalabs.bookstore.orders.InvalidOrderException;
 import com.sivalabs.bookstore.orders.api.events.OrderCreatedEvent;
 import com.sivalabs.bookstore.orders.api.model.OrderStatus;
 import java.util.List;
@@ -38,6 +39,8 @@ public class OrderService {
 
         if (orderEntity.getStatus() == null) {
             orderEntity.setStatus(OrderStatus.NEW);
+        } else if (orderEntity.getStatus() != OrderStatus.NEW) {
+            throw new InvalidOrderException("New order must start in status NEW but was: " + orderEntity.getStatus());
         }
 
         OrderEntity savedOrder = orderRepository.save(orderEntity);
@@ -100,6 +103,10 @@ public class OrderService {
                 .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderNumber));
 
         OrderStatus oldStatus = order.getStatus();
+        if (!isPermittedTransition(oldStatus, newStatus)) {
+            throw new IllegalStateException(
+                    "Order " + orderNumber + " cannot transition from " + oldStatus + " to " + newStatus);
+        }
         order.setStatus(newStatus);
         OrderEntity updatedOrder = orderRepository.save(order);
 
@@ -130,6 +137,32 @@ public class OrderService {
 
     private boolean canBeCancelled(OrderStatus status) {
         return status == OrderStatus.NEW || status == OrderStatus.PENDING;
+    }
+
+    /**
+     * Business rules R1–R5 from issue #51: only the forward chain NEW -> PENDING -> CONFIRMED ->
+     * IN_PROCESS -> SHIPPED -> DELIVERED, the cancellations from NEW/PENDING, and the error
+     * transitions from NEW/PENDING/CONFIRMED/IN_PROCESS are permitted. DELIVERED, CANCELLED and
+     * ERROR are terminal states, and same-value writes are always rejected.
+     */
+    private boolean isPermittedTransition(OrderStatus from, OrderStatus to) {
+        if (from == to) {
+            return false;
+        }
+        return switch (to) {
+            case PENDING -> from == OrderStatus.NEW;
+            case CONFIRMED -> from == OrderStatus.PENDING;
+            case IN_PROCESS -> from == OrderStatus.CONFIRMED;
+            case SHIPPED -> from == OrderStatus.IN_PROCESS;
+            case DELIVERED -> from == OrderStatus.SHIPPED;
+            case CANCELLED -> canBeCancelled(from);
+            case ERROR ->
+                from == OrderStatus.NEW
+                        || from == OrderStatus.PENDING
+                        || from == OrderStatus.CONFIRMED
+                        || from == OrderStatus.IN_PROCESS;
+            case NEW -> false;
+        };
     }
 
     public static class OrderNotFoundException extends RuntimeException {
