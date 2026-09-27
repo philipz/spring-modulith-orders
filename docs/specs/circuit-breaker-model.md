@@ -152,8 +152,11 @@ Open 期間履行完畢；若讓它跨越期滿繼續為真，時間一到狀態
   - `--max-steps=24 --max-samples=20000` → **9.0–9.8 秒**；
   - `--max-steps=40 --max-samples=20000` → **13.6–14.8 秒**；
   - `--max-steps=40 --max-samples=100000` → **57.4–61.1 秒**（三項稀有 witness 用）。
-  Issue #50 的單次上限是 600 秒，最慢的一項是它的 **10%**。`verify.yml` 逾時總和
-  **1740 秒**（上限 1800）；每項逾時對實測牆鐘保留 2.4× 以上的餘裕。
+  - `--max-steps=60 --max-samples=40000` → **41.2 秒**（單執行緒實例用）。
+
+  Issue #50 的單次上限是 600 秒，最慢的一項是它的 **10%**。全 21 項檢查總牆鐘
+  **360 秒**（放大稀有 witness 前是 184 秒）。`verify.yml` 逾時總和 **1760 秒**
+  （上限 1800）；每項逾時對實測牆鐘保留 2.4× 以上的餘裕。
 - **稀有 witness 的抽樣規模是量出來的，不是猜的。** 上一輪有兩項檢查的 witness 落在
   0 次、另兩項只有 1–2 次（等於換個隨機種子就可能變 0 ——「成立」會變成假綠燈）。
   本輪逐項量測後放大（三次最佳化嘗試，全部記錄於 `verify.yml` 的註解）：
@@ -163,7 +166,7 @@ Open 期間履行完畢；若讓它跨越期滿繼續為真，時間一到狀態
   | `cb_t3_d1_w2_c3` / `INV_halfOpenFailureReopens` | **0** | 40 步／100000 | 4 | 61.1s |
   | `cb_t3_d1_w2_c3` / `INV_halfOpenBoundedRequests` | 1（脆弱） | 40 步／100000 | 19 | 60.8s |
   | `cb_t2_d2_w3` / `INV_halfOpenFailureRestartsTimer` | 2（脆弱） | 40 步／100000 | 13 | 57.4s |
-  | `cb_t2_d3_w4_c1` / `INV_halfOpenClosesAfterSuccessThreshold` | **0** | 40 步／20000 | 6 | 14.8s |
+  | `cb_t2_d3_w4_c1` / `INV_halfOpenClosesAfterSuccessThreshold` | **0** | 60 步／40000 | 17 | 41.2s |
 
   成因都一樣：這些實例的門檻高（3）或完全沒有併發（`Set(1)`）且 time-out 長（3），
   要走完「湊滿門檻 → 開路 → 期滿 → 試探 → 成功／失敗」需要很長的精確前綴，而
