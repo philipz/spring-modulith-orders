@@ -166,12 +166,15 @@ stateDiagram-v2
 
 **Diagram: Cache Circuit Breaker State Machine**
 
-State transition rules (per `docs/specs/circuit-breaker.md`, Azure Circuit Breaker pattern, issue #56):
+State transition rules (per `docs/specs/circuit-breaker.md`, Azure Circuit Breaker pattern, issues #56 & #73):
 
 - **Closed:** failures are counted only within the rolling failure window
-  (`bookstore.cache.circuit-breaker-failure-window-ms`). If the time since the window's first
-  failure exceeds the window, the counter restarts with the current failure, so sporadic
-  failures spread over time never trip the breaker.
+  (`bookstore.cache.circuit-breaker-failure-window-ms`). The counter is time based and resets
+  automatically at periodic intervals: once the time since the window's first failure reaches
+  the window length the window has elapsed (inclusive comparison, so two failures exactly one
+  window apart are never merged), the counter restarts with the current failure, and reads of
+  `getConsecutiveFailureCount()` report `0` immediately after expiry even when no new failure
+  arrives. Sporadic failures spread over time therefore never trip the breaker.
 - **Open:** every request bypasses the cache and returns the fallback immediately.
 - **Half-open:** once the recovery timeout elapses, exactly one trial request is admitted;
   all other requests keep being treated like the Open state. A successful trial closes the
@@ -188,6 +191,7 @@ State transition rules (per `docs/specs/circuit-breaker.md`, Azure Circuit Break
 | --- | --- | --- |
 | `consecutiveFailures` | `AtomicInteger` | Count of sequential cache operation failures |
 | `firstFailureAt` | `volatile LocalDateTime` | Timestamp of the first failure inside the current failure window |
+| `clock` | `Clock` | Injectable time source (`Clock.systemDefaultZone()` in production); lets tests advance the failure window without sleeping |
 | `circuitOpen` | `volatile boolean` | Current circuit state |
 | `circuitOpenedAt` | `volatile LocalDateTime` | Timestamp when circuit opened (reset when a half-open trial fails) |
 | `halfOpenTrialActive` | `AtomicBoolean` | Guards the single trial request admitted in the half-open state |
@@ -545,7 +549,7 @@ This approach:
 | --- | --- | --- |
 | `bookstore.cache.circuit-breaker-failure-threshold` | `5` | Number of consecutive failures before opening circuit |
 | `bookstore.cache.circuit-breaker-recovery-timeout-ms` | `30000` | Milliseconds before attempting cache recovery (half-open state) |
-| `bookstore.cache.circuit-breaker-failure-window-ms` | `60000` | Rolling window bounding Closed-state failure counting; the counter restarts once the window's first failure is older than the window |
+| `bookstore.cache.circuit-breaker-failure-window-ms` | `60000` | Rolling window bounding Closed-state failure counting; the counter restarts once the time since the window's first failure reaches the window length (inclusive), and reads report 0 right after expiry even without a new failure |
 
 ### Environment Variables
 
