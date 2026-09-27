@@ -1,4 +1,17 @@
-// Circuit Breaker as-is 模型（ADR-018 模型階段，2026-09-27 第二次修復後複驗）
+// Circuit Breaker as-is 模型（ADR-018 模型階段，2026-09-27 不變量重做後複驗）
+//
+// 本輪的唯一變更來源是**不變量側**（PR #79，人工裁定）：
+//   `INV_openRequiresThresholdReached` 由狀態不變量改為**轉移性質**，並為此在
+//   invariants.qnt 新增 `var failuresAtLastOpening`（最近一次 Closed → Open 轉移當下的
+//   失敗計數）。程式碼沒有對應欄位，它是規格側的輔助（ghost）變數，由本模型維護：
+//     - `failWhileClosed` 開路時（`opens`）寫入該次 `registerClosedStateFailure()` 的回傳值
+//       （CacheErrorHandler.java:122-125）——這就是 Closed → Open 轉移當下的失敗數。
+//     - `failWhileOpenPath`（:114-120 的 Half-Open 試探失敗重新開路）**不更新**：依
+//       invariants.qnt 的宣告與 source.md「enters the Open state immediately」，該路徑
+//       不受門檻限制。
+//     - 其餘步驟（含關路／重設）一律不動：變數語意是「最近一次 Closed → Open 轉移」的
+//       歷史紀錄，關路不會讓那次轉移沒發生過。見未決事項 3。
+//   程式行為的建模**逐字沿用上一輪（PR #78）**，未因不變量改寫而調整任何一個 action。
 //
 // 依 src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java 的
 // **目前 trunk 現況**建模，已含兩輪修復：
@@ -146,6 +159,8 @@ module model {
     circuitOpenedAt' = circuitOpenedAt,
     halfOpenTrialActive' = halfOpenTrialActive,
     totalCircuitOpenings' = totalCircuitOpenings,
+    // 只有 Closed → Open 轉移會改寫（見 failWhileClosed）。
+    failuresAtLastOpening' = failuresAtLastOpening,
   }
 
   // 失敗計數的唯一寫入口：欄位記憶值、視窗起點，以及由兩者＋時鐘推得的**可見計數**
@@ -194,6 +209,9 @@ module model {
     totalCircuitOpenings' = totalCircuitOpenings + 1,
     halfOpenAdmitted' = 0,
     halfOpenSuccesses' = 0,
+    // 這個組合積木只服務 failWhileOpenPath（:114-120）：電路**本來就開著**，
+    // 不是 Closed → Open 轉移，因此不更新 failuresAtLastOpening（invariants.qnt:48-51）。
+    failuresAtLastOpening' = failuresAtLastOpening,
   }
 
   // ---------------------------------------------------------------------------
@@ -206,6 +224,8 @@ module model {
     now' = 0,
     // consecutiveFailures == 0（:25）、firstFailureAt == null（:26）。
     setFailureWindow(0, neverOpened, 0),
+    // 尚未發生任何 Closed → Open 轉移。
+    failuresAtLastOpening' = 0,
     halfOpenSuccesses' = 0,
     halfOpenAdmitted' = 0,
     halfOpenFailed' = false,
@@ -267,6 +287,7 @@ module model {
       circuitOpen' = circuitOpen,
       circuitOpenedAt' = circuitOpenedAt,
       totalCircuitOpenings' = totalCircuitOpenings,
+      failuresAtLastOpening' = failuresAtLastOpening,
       halfOpenSuccesses' = halfOpenSuccesses,
       halfOpenFailed' = halfOpenFailed,
       lastHalfOpenFailureAt' = lastHalfOpenFailureAt,
@@ -318,6 +339,8 @@ module model {
       halfOpenFailed' = if (closes) false else halfOpenFailed,
       lastHalfOpenFailureAt' = if (closes) neverOpened else lastHalfOpenFailureAt,
       totalCircuitOpenings' = totalCircuitOpenings,
+      // 關路不是 Closed → Open 轉移，歷史紀錄保留（見檔頭與未決事項 3）。
+      failuresAtLastOpening' = failuresAtLastOpening,
       fallbackRecommendations' = fallbackRecommendations,
       threads' = threads.put(t, IDLE_THREAD),
       keepClock,
@@ -371,6 +394,9 @@ module model {
       circuitOpenedAt' = if (opens) now else circuitOpenedAt,
       halfOpenTrialActive' = if (opens) false else halfOpenTrialActive,
       totalCircuitOpenings' = if (opens) totalCircuitOpenings + 1 else totalCircuitOpenings,
+      // 唯一的 Closed → Open 轉移（:123-125）：記錄轉移當下 registerClosedStateFailure()
+      // 回傳的失敗數，也就是與 failureThreshold 比較的那個值。
+      failuresAtLastOpening' = if (opens) failures else failuresAtLastOpening,
       halfOpenAdmitted' = if (opens) 0 else halfOpenAdmitted,
       halfOpenSuccesses' = if (opens) 0 else halfOpenSuccesses,
       halfOpenFailed' = halfOpenFailed,
@@ -421,6 +447,7 @@ module model {
     lastHalfOpenFailureAt' = neverOpened,
     halfOpenSuccesses' = halfOpenSuccesses,
     totalCircuitOpenings' = totalCircuitOpenings,
+    failuresAtLastOpening' = failuresAtLastOpening,
     keepClock,
     keepErrorStats,
     keepAudit,
@@ -458,6 +485,7 @@ module model {
     halfOpenFailed' = false,
     lastHalfOpenFailureAt' = neverOpened,
     totalCircuitOpenings' = totalCircuitOpenings,
+    failuresAtLastOpening' = failuresAtLastOpening,
     keepClock,
     keepAudit,
     keepThreads,
@@ -501,6 +529,20 @@ module model {
 
   // INV_openRequiresThresholdReached：電路確實因失敗達門檻而被打開過。
   val WIT_thresholdOpenedCircuit: bool = circuitState == Open and totalCircuitOpenings > 0
+
+  // INV_openRequiresThresholdReached（轉移性質的記錄側）：Closed → Open 的轉移確實發生過
+  // 並被記錄下來——電路目前是 Open，且 failuresAtLastOpening 已由某次 failWhileClosed
+  // 寫入（init 為 0，只有轉移會寫）。
+  val WIT_closedToOpenTransitionRecorded: bool =
+    circuitState == Open and failuresAtLastOpening > 0
+
+  // INV_openRequiresThresholdReached（門檻豁免路徑）：本不變量刻意不涵蓋「Half-Open 試探
+  // 失敗立刻重新開路」（source.md：enters the Open state immediately）。這條 witness 確認
+  // 該路徑在抽樣中確實走到過——目前這段 Open 就是由試探失敗當下重新起算的
+  // （circuitOpenedAt == lastHalfOpenFailureAt，CacheErrorHandler.java:114-120 → :261），
+  // 因此不變量的「成立」不是因為這個分支從未執行。
+  val WIT_trialFailureReopenedCircuit: bool =
+    circuitState == Open and lastHalfOpenFailureAt >= 0 and circuitOpenedAt == lastHalfOpenFailureAt
 
   // INV_closedFailureCounterResetsPeriodically：Closed 期間有過失敗，而且自該視窗
   // 起點起算已經整整經過一個計數視窗（時間確實推進到「該自動歸零」的時點）。
