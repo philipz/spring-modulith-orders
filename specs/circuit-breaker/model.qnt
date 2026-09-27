@@ -200,7 +200,7 @@ module model {
       gateAdmits,
       threads' = threads.put(t, { pc: Running, op: op, trial: trial }),
       // compareAndSet(false, true) 成功（:162）。
-      halfOpenTrialActive' = trial or halfOpenTrialActive,
+      halfOpenTrialActive' = (trial or halfOpenTrialActive),
       // 放行「當下」的狀態決定計量歸屬（Issue #50）。
       halfOpenAdmitted' = if (circuitState == HalfOpen) halfOpenAdmitted + 1 else halfOpenAdmitted,
       admittedWhileOpen' = if (circuitState == Open) admittedWhileOpen + 1 else admittedWhileOpen,
@@ -226,7 +226,7 @@ module model {
     errorCounts' = errorCounts.put(op, errorCounts.get(op) + 1),
     lastErrorTimes' = lastErrorTimes.put(op, now),
     fallbackRecommendations' = fallbackRecommendations + 1,
-    rejectedWhileOpen' = rejectedWhileOpen or circuitState == Open,
+    rejectedWhileOpen' = (rejectedWhileOpen or circuitState == Open),
     admittedWhileOpen' = admittedWhileOpen,
     keepClock,
     keepBreaker,
@@ -281,7 +281,7 @@ module model {
       lastErrorTimes' = lastErrorTimes.put(th.op, now),
       fallbackRecommendations' = fallbackRecommendations + 1,
       doOpenCircuit,
-      halfOpenFailed' = th.trial or halfOpenFailed,
+      halfOpenFailed' = (th.trial or halfOpenFailed),
       lastHalfOpenFailureAt' = if (th.trial) now else lastHalfOpenFailureAt,
       consecutiveFailures' = consecutiveFailures,
       windowStartedAt' = windowStartedAt,
