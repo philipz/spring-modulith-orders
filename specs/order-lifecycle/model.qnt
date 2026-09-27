@@ -231,6 +231,12 @@ module model {
           and normalRank(writesOf(k).nth(i + 1).writtenStatus)
             == normalRank(writesOf(k).nth(i).writtenStatus) + 1))
 
+  // INV_normalFlowIsSingleStep（第二個情境）：確實有訂單走完整條正常流程
+  // 到 DELIVERED（NEW → PENDING → CONFIRMED → IN_PROCESS → SHIPPED → DELIVERED
+  // 共 5 次轉移，加上建立至少需要 11 個步驟）。
+  val WIT_deliveredReached: bool =
+    orders.keys().exists(k => currentStatus(k) == DELIVERED)
+
   // INV_cancelOnlyFromNewOrPending：確實有一張訂單被取消並提交。
   val WIT_cancelCommitted: bool =
     orders.keys().exists(k =>
