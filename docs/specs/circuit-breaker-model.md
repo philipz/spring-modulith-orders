@@ -9,6 +9,13 @@
 > 大於或等於（`hasFailureWindowElapsed` :153-155）、**讀取計數時若視窗已過期即回傳 0**
 > （`getConsecutiveFailureCount` → `expireElapsedFailureWindow`，:275-293）。本文件與
 > `model.qnt` 依**目前 trunk 的程式**重建，取代上一輪（PR #71）的模型。
+>
+> **2026-09-27 不變量重做後複驗（本輪，PR #79 之後）**：上一輪（PR #78）唯一的候選發現
+> `INV_openRequiresThresholdReached` 經**人工裁定為不變量寫法過強**——引文規定的是
+> Closed → Open **轉移當下**的條件，不是整段 Open 期間的狀態條件。人類據此重跑不變量階段
+> 並只改寫該條（PR #79），同時在 `invariants.qnt` 新增 `var failuresAtLastOpening`。
+> **`CacheErrorHandler` 本輪沒有任何變更**（最後一次修改仍是 #73），因此本輪的模型變更
+> **只有 ghost 變數的維護與 witness**，所有描述程式行為的 action 逐字沿用 PR #78。
 
 ## 建模對象
 
@@ -95,6 +102,28 @@ Issue #50 的第二次重跑指示即為「讀取計數時若視窗已過期即�
 | `halfOpenFailed` | 試探請求失敗 | 關路、**Open 期滿**（`tick` 跨過 `circuitOpenDuration`） |
 | `lastHalfOpenFailureAt` | 試探請求失敗 | 關路（`circuitOpenedAt` 同時回到 -1） |
 
+`failuresAtLastOpening`（本輪由 `invariants.qnt` 新增）是另一種輔助變數——**不是情境範圍的
+計量，而是轉移的歷史紀錄**：
+
+| 變數 | 設定時機 | 歸零時機 |
+| --- | --- | --- |
+| `failuresAtLastOpening` | `failWhileClosed` 開路當下，寫入 `registerClosedStateFailure()` 的回傳值（:122-125） | **從不歸零**（`init` 為 0） |
+
+三個相關的建模判斷，逐條說明：
+
+1. **只有 Closed → Open 寫入。** `failWhileOpenPath`（:114-120 的 `if (circuitOpen)` 分支）
+   是「已經開著的 breaker 重新計時」，不是 Closed → Open 轉移，故不更新——這正是
+   `invariants.qnt:48-51` 對該變數的宣告，也是不變量刻意不涵蓋該路徑的原因
+   （`source.md`：「enters the **Open** state immediately」）。
+2. **關路不歸零。** 變數語意是「**最近一次** Closed → Open 轉移當下的失敗數」；關路
+   （`closeCircuit` :267-273、`resetErrorState` :248-257）不會讓那次轉移沒發生過。
+   這裡有另一種寫法（關路時歸零），兩者在本模型下對不變量結果**沒有差異**，因為模型中
+   Closed → Open 的唯一入口就是 `failWhileClosed` 的 `opens` 分支（`failWhileOpenPath`
+   要求 `circuitOpen` 已為真）；採「不歸零」是因為它逐字符合 `invariants.qnt` 的宣告。
+   **列為未決事項 3。**
+3. **程式沒有這個欄位。** 它是規格側的 ghost 變數，只被不變量讀取，不影響任何被建模的
+   程式行為（不出現在任何 guard 裡）。
+
 `halfOpenFailed` 在 Open 期滿時歸零，是因為該次失敗所要求的「回到 Open」已由這段
 Open 期間履行完畢；若讓它跨越期滿繼續為真，時間一到狀態變成 Half-Open 就會產生
 與程式缺陷無關的假違反。同理，關路時必須清掉 `lastHalfOpenFailureAt`，否則
@@ -119,9 +148,30 @@ Open 期間履行完畢；若讓它跨越期滿繼續為真，時間一到狀態
 - 全部檢查採 **`mode: run`（隨機模擬）**：`mode: verify` 需要 Apalache，本環境
   `quint verify` 在 `$HOME/.quint` 解壓時 `EACCES`（實測退出碼 1），量不到的數字不宣告。
   因此「成立」只代表抽樣中未見反例，**不是證明**。
-- 單次檢查實測牆鐘：`holds` 類 6.4–9.1 秒（`--max-steps=24 --max-samples=20000`）、
-  違反類 2.4 秒以內；Issue #50 的上限是 600 秒。全 21 項檢查總牆鐘 **151 秒**。
-  `verify.yml` 逾時總和 1560 秒（上限 1800）。
+- 單次檢查實測牆鐘（本輪，quint 0.32.0）：
+  - `--max-steps=24 --max-samples=20000` → **9.0–9.8 秒**；
+  - `--max-steps=40 --max-samples=20000` → **13.6–14.8 秒**；
+  - `--max-steps=40 --max-samples=100000` → **57.4–61.1 秒**（三項稀有 witness 用）。
+  - `--max-steps=60 --max-samples=40000` → **41.2 秒**（單執行緒實例用）。
+
+  Issue #50 的單次上限是 600 秒，最慢的一項是它的 **10%**。全 21 項檢查總牆鐘
+  **360 秒**（放大稀有 witness 前是 184 秒）。`verify.yml` 逾時總和 **1760 秒**
+  （上限 1800）；每項逾時對實測牆鐘保留 2.4× 以上的餘裕。
+- **稀有 witness 的抽樣規模是量出來的，不是猜的。** 上一輪有兩項檢查的 witness 落在
+  0 次、另兩項只有 1–2 次（等於換個隨機種子就可能變 0 ——「成立」會變成假綠燈）。
+  本輪逐項量測後放大（三次最佳化嘗試，全部記錄於 `verify.yml` 的註解）：
+
+  | 檢查 | 上一輪（24 步／20000） | 本輪設定 | 本輪 witness | 牆鐘 |
+  | --- | --- | --- | --- | --- |
+  | `cb_t3_d1_w2_c3` / `INV_halfOpenFailureReopens` | **0** | 40 步／100000 | 4 | 61.1s |
+  | `cb_t3_d1_w2_c3` / `INV_halfOpenBoundedRequests` | 1（脆弱） | 40 步／100000 | 19 | 60.8s |
+  | `cb_t2_d2_w3` / `INV_halfOpenFailureRestartsTimer` | 2（脆弱） | 40 步／100000 | 13 | 57.4s |
+  | `cb_t2_d3_w4_c1` / `INV_halfOpenClosesAfterSuccessThreshold` | **0** | 60 步／40000 | 17 | 41.2s |
+
+  成因都一樣：這些實例的門檻高（3）或完全沒有併發（`Set(1)`）且 time-out 長（3），
+  要走完「湊滿門檻 → 開路 → 期滿 → 試探 → 成功／失敗」需要很長的精確前綴，而
+  `healthCheckPass`／`resetState` 在每一步都可能把進度清掉。**這是抽樣深度問題，不是
+  模型缺陷**——同一條情境在 `cb_t1_d1_w2`（門檻 1、time-out 1）是 49–372 次。
 - 只建模單一 breaker 實例；未建模多 shard／多資源（`source.md`
   §Problems and considerations 的 Resource differentiation）與多區域。
 - 未建模 Retry pattern 的組合、manual override、failed-request replay、牆鐘跳躍與
@@ -133,8 +183,9 @@ Open 期間履行完畢；若讓它跨越期滿繼續為真，時間一到狀態
 QUINT=/home/runner/work/software_factory/software_factory/node_modules/.bin/quint
 cd specs/circuit-breaker
 $QUINT typecheck instances.qnt
-$QUINT run instances.qnt --main=cb_t2_d3_w4_c1 --invariant=INV_openRequiresThresholdReached \
-  --max-steps=24 --max-samples=20000 --witnesses WIT_thresholdOpenedCircuit
+$QUINT run instances.qnt --main=cb_t1_d1_w2 --invariant=INV_openRequiresThresholdReached \
+  --max-steps=24 --max-samples=20000 \
+  --witnesses WIT_thresholdOpenedCircuit WIT_closedToOpenTransitionRecorded WIT_trialFailureReopenedCircuit
 ```
 
 或跑 harness 的集中驗證（與 CI 同一條路徑；`--quint` 省略時預設
@@ -157,58 +208,91 @@ node dist/cli/factory-spec-verify.js --phase model --spec-name circuit-breaker \
 
 結果一律以 CI 依 `verify.yml` 重新執行為準（`traces/` 由 CI 寫入）。以下是 agent 端以
 harness `factory-spec-verify`（與 CI 同一條路徑、quint 0.32.0）實測的結果：退出碼 **0**、
-`ok=true`、`mismatches=[]`，全 21 項檢查總牆鐘 **151 秒**。
+`ok=true`、`mismatches=[]`、`advisories=[]`，**21/21 檢查 `holds`、8/8 不變量 `holds`、
+零個 0 次 witness**。
 
 | 不變量 | 結果 | 說明 |
 | --- | --- | --- |
 | `INV_openRejectsOperation` | ✅ 成立（witness 可達） | `shouldBypassOperation` 在 Open 期間一律 `return true`；放行只發生在 Closed 或搶到試探名額時 |
 | `INV_closedFailureCountNotExceeded` | ✅ 成立（witness 可達） | 達門檻的那次失敗在同一次 `handleCacheError` 內就 `openCircuit()`；關路路徑一律把計數歸零 |
-| `INV_openRequiresThresholdReached` | 🔴 違反（候選發現，未回放） | 見下節——**本輪新出現**，是 #73 讀取語意的直接後果 |
-| `INV_closedFailureCounterResetsPeriodically` | ✅ 成立（witness 可達） | **上一輪的違反已由 #73 修復**：視窗過期後任何讀取都拿到 0（:275-293），邊界也改成含等於（:154） |
+| `INV_openRequiresThresholdReached` | ✅ 成立（witness 可達） | **上一輪的違反已由不變量改寫消解**（PR #79，人工裁定）：見下節 |
+| `INV_closedFailureCounterResetsPeriodically` | ✅ 成立（witness 可達） | 已由 #73 修復：視窗過期後任何讀取都拿到 0（:275-293），邊界也改成含等於（:154） |
 | `INV_halfOpenBoundedRequests` | ✅ 成立（witness 可達） | `halfOpenTrialActive` 的 CAS（:188）每個 Open 期間只放行 1 個試探請求（#56） |
-| `INV_halfOpenClosesAfterSuccessThreshold` | ✅ 成立（witness 可達） | `successThreshold = 1` 下語意一致（見未決事項） |
+| `INV_halfOpenClosesAfterSuccessThreshold` | ✅ 成立（witness 可達） | `successThreshold = 1` 下語意一致（見未決事項 1） |
 | `INV_halfOpenFailureReopens` | ✅ 成立（witness 可達） | `handleCacheError` 的 `if (circuitOpen) { openCircuit(); return; }`（:114-120，#56） |
 | `INV_halfOpenFailureRestartsTimer` | ✅ 成立（witness 可達） | 同一個 `openCircuit()` 把 `circuitOpenedAt` 設為 `now`（:261） |
 
-### 候選發現：`INV_openRequiresThresholdReached`（本輪新出現）
+### 上一輪的候選發現如何被消解：`INV_openRequiresThresholdReached`
 
-`source.md` §Solution：「The failure threshold triggers the **Open** state only when a
-specified number of failures occur during a specified interval.」——已核准的不變量把它寫成
-狀態不變量 `circuitState == Open implies consecutiveFailures >= failureThreshold`
-（門檻語意由人工審查在 PR #52 裁定）。
+**不是靠改模型消失的**——`CacheErrorHandler` 與模型的程式行為 action 本輪都沒有變更。
+上一輪（PR #78）找到的反例被**人工裁定為不變量寫法過強**，人類重跑不變量階段改寫該條
+（PR #79），本輪據此在模型維護新的 ghost 變數，反例自然不再存在：
 
-**成因**：失敗計數的視窗以 `firstFailureAt` 為錨點，Open 狀態的存續則以 `circuitOpenedAt`
-為錨點，兩者互不相關；`openCircuit()`（:259-265）**不動** `firstFailureAt`。#73 之後，
-只要失敗視窗在 breaker 還開著的期間走完，讀取者拿到的計數就變成 0，於是出現
-「breaker 是 Open，但回報的 `consecutiveFailures` 是 0」。這不是抽象假象：
-`CacheHealthIndicator.java:179-180` 與 `OrdersInfoContributor.java:33-34` 正好把
-`isCircuitOpen()` 與 `getConsecutiveFailureCount()` 放在同一份報告裡，運維看到的會是
-自相矛盾的 `{"open": true, "consecutiveFailures": 0}`。
+| | 上一輪（PR #78 之前的寫法） | 本輪（PR #79 核准的寫法） |
+| --- | --- | --- |
+| 形式 | 狀態不變量 `Open implies consecutiveFailures >= failureThreshold` | 轉移性質 `Open implies failuresAtLastOpening >= failureThreshold` |
+| 要求 | 整段 Open 期間**計數都**維持在門檻以上 | Closed → Open **轉移當下**的計數達門檻 |
+| 結果 | 🔴 四個實例全部違反 | ✅ 四個實例全部成立 |
 
-反例有兩條互不相同的路徑，四個實例全部找到（都在 2.4 秒內）：
+裁定的依據是引文本身：「The failure threshold **triggers** the Open state only when a
+specified number of failures occur during a specified interval.」——講的是**觸發**（轉移），
+而程式的失敗計數是**視窗**範圍、Open 是**計時器**範圍，兩個錨點（`firstFailureAt` 與
+`circuitOpenedAt`）互不相關，本來就不該要求兩者在整段期間一致。
 
-1. **視窗在 Open 期間走完，不需要任何讀取**（`cb_t2_d3_w4_c1`，**單一執行緒**，
-   `failureThreshold=2`、`circuitOpenDuration=3`、`failureWindow=4`）：
-   `now=1` 一次失敗 → 計數 1、視窗錨點 1；`now=4` 第二次失敗（`4-1=3 < 4` 仍屬同一視窗）
-   → 計數 2 達門檻 → 開路於 `now=4`；`now=5` 只是時間推進 → `5-1=4 >= 4` 視窗走完 →
-   讀到的計數 **0**，而 breaker 仍是 Open（`5-4=1 <= 3`）。**與併發交錯無關。**
-2. **讀取把歸零寫回欄位後，半開試探失敗重新開路**（`cb_t1_d1_w2`，
-   `failureThreshold=1`、`circuitOpenDuration=1`、`failureWindow=2`）：
-   `now=2` 失敗即開路（計數 1、視窗錨點 2）→ `now=4` 視窗走完且進入 Half-Open →
-   一次 `getConsecutiveFailureCount()` 把欄位與錨點一起清成 0／null（:287-293）→
-   半開試探請求失敗 → `handleCacheError` 走 `if (circuitOpen)` 分支重新開路（:114-120），
-   **不重新計數** → Open 而計數 0。
+**上一輪反例描述的現象本身仍然存在，而且仍然值得修**：`openCircuit()`（:259-265）不動
+`firstFailureAt`，因此失敗視窗可以在 breaker 還開著時走完，健康報告會出現自相矛盾的
+`{"open": true, "consecutiveFailures": 0}`（`CacheHealthIndicator.java:179-180` 與
+`OrdersInfoContributor.java:33-34` 把兩者放在同一份報告裡；以程式預設值
+`failure-window-ms=60000`、`recovery-timeout-ms=30000`，這個窗口長達 20 秒）。
+**它現在的定位是「可觀測性缺陷」，不是本規格任何不變量的違反**——不變量只管
+Closed → Open 的轉移條件，而那個條件程式是滿足的。若要修，請另開工單處理報告一致性
+（例如 Open 期間回報開路當下的計數），不要動本規格。
 
-**以程式預設值也會發生**：`failure-window-ms=60000`、`recovery-timeout-ms=30000`——
-失敗分散在 0–50 秒內湊滿 5 次而在 50 秒開路，60 秒時視窗走完，但 breaker 要到 80 秒才
-進入 Half-Open；這 20 秒內健康報告就是 `open: true, consecutiveFailures: 0`。
+**`specs/circuit-breaker/traces/` 下現存四個 ITF 檔是上一輪那個違反的反例，本輪已失效。**
+`traces/` 只能由 CI 寫入，本 agent 未觸碰；請由 CI 重新產生／清理。
 
-**這是候選發現（未回放）**：請開 `agent-fix-bug` 工單，由 01-test 的紅燈測試回放到真實
-程式確認（ADR-018 Q31）。本工作項不修改 `src/`，也未修改模型讓反例消失。
+### witness 的可達性即「非假綠燈」的證據
 
-> **另一種解讀（交人類裁定，未決事項 1）**：規格原文講的是「門檻**觸發** Open 狀態」
-> ——那是**轉移**條件，程式完全滿足（`failWhileClosed` 只在 `failures >= failureThreshold`
-> 時開路；`failWhileOpenPath` 只讓**已經開著**的 breaker 重新計時）。把它寫成狀態不變量
-> 才要求計數在整段 Open 期間都維持在門檻之上，而程式的計數是視窗範圍、Open 是計時器
-> 範圍。若人工裁定「狀態不變量的寫法過強」，正確的處理是修正 `invariants.qnt`
-> （需重跑不變量階段核准），不是改模型——本階段不得修改 `invariants.qnt`。
+八條不變量全部成立時，唯一能區分「真的成立」與「情境根本沒發生」的就是 witness 計數。
+本輪最後一次 harness 複驗的計數（節錄，完整 21 項見 `verify.yml` 的順序）：
+
+| 不變量 | 實例 | witness | 次數 |
+| --- | --- | --- | --- |
+| `INV_openRejectsOperation` | `cb_t3_d1_w2_c3` | `WIT_openRejectsArrivingRequest` | 21 |
+| `INV_openRequiresThresholdReached` | `cb_t1_d1_w2` | `WIT_thresholdOpenedCircuit` / `WIT_closedToOpenTransitionRecorded` / `WIT_trialFailureReopenedCircuit` | 13759 / 13759 / 53 |
+| `INV_openRequiresThresholdReached` | `cb_t3_d1_w2_c3` | `WIT_thresholdOpenedCircuit` / `WIT_closedToOpenTransitionRecorded` | 72 / 72 |
+| `INV_halfOpenBoundedRequests` | `cb_t3_d1_w2_c3` | `WIT_halfOpenAdmitsTrial` | 25 |
+| `INV_halfOpenClosesAfterSuccessThreshold` | `cb_t2_d3_w4_c1` | `WIT_trialSuccessClosedCircuit` | 17 |
+| `INV_halfOpenFailureReopens` | `cb_t3_d1_w2_c3` | `WIT_halfOpenTrialFailed` | 3 |
+| `INV_halfOpenFailureRestartsTimer` | `cb_t2_d2_w3` | `WIT_timerRunningAfterTrialFailure` | 21 |
+
+`WIT_trialFailureReopenedCircuit`（本輪新增）特別重要：`INV_openRequiresThresholdReached`
+**刻意不涵蓋**「Half-Open 試探失敗立刻重新開路」這條路徑，這條 witness 證明該路徑在抽樣中
+確實走到過（53 次），因此不變量的成立不是因為那個分支從未執行。
+
+## 未決事項
+
+1. **`successThreshold` 的語意。** `source.md` 說「after a specified number of successful,
+   **consecutive** operation invocations」，程式沒有這個設定：`recordSuccess`（:226-235）
+   單次成功即 `closeCircuit()`。Issue #50 指定採最小合法值 1，於是「1 次連續成功」與程式
+   一致，`INV_halfOpenClosesAfterSuccessThreshold` 成立。**若人類認為規格意圖是 > 1，
+   則這是一個實作缺陷而非規格參數選擇**，需要人工裁定；本階段不擴大解讀。
+2. **method 內部的奈秒級交錯不建模。** `shouldBypassOperation` 先讀 `circuitOpenedAt`
+   （:185）再 CAS `halfOpenTrialActive`（:188）；兩者之間若有另一執行緒 `openCircuit()`，
+   本執行緒可能拿著過期快照通過 CAS，在**新的** Open 期間被放行——這會直接影響
+   `INV_openRejectsOperation` 與 `INV_halfOpenBoundedRequests`。本模型以「毫秒級窗口
+   （閘門→受保護操作）」為建模邊界，看不到這個交錯。**要不要把建模粒度降到單一 volatile
+   讀寫，是成本與保真度的權衡，交人類裁定。**
+3. **`failuresAtLastOpening` 在關路時是否該歸零。** 本模型採「不歸零」（逐字符合
+   `invariants.qnt:48-51` 的「最近一次 Closed → Open 轉移」）。另一種寫法是關路時歸零，
+   兩者在本模型下對結果沒有差異（Closed → Open 的唯一入口是 `failWhileClosed`），但語意
+   不同：歸零版本額外斷言「每次進入 Open 都必須有一次記錄在案的達門檻轉移」。
+   **若人類希望不變量帶上這層更強的意思，需要重跑不變量階段。**
+4. **`consecutiveFailures` 對應到程式的哪個值**（沿用上一輪未決事項，人類已透過 PR #79
+   的裁定間接確認本輪選擇可接受）：模型取「任何讀取者實際拿到的值」（視窗過期即 0），
+   而非 `AtomicInteger` 欄位的惰性記憶值。詳見上文「失敗計數的兩層表示」。
+   **若人類認為該對應到欄位本身，`INV_closedFailureCounterResetsPeriodically` 會重新違反。**
+5. **抽樣不是證明。** 全部檢查是 `mode: run`（隨機模擬），本環境無法安裝 Apalache
+   （`quint verify` 在 `$HOME/.quint` 解壓時 `EACCES`）。三項稀有 witness 的命中率只有
+   0.004%–0.04%，說明抽樣對這些深層情境的覆蓋很稀薄——**「成立」只代表抽樣中未見反例**。
+   若要真正的有界窮盡證明，需要人類提供可用的 Apalache 環境。
