@@ -1,57 +1,69 @@
 # 訂單生命週期模型的驗證清單（agent-write-spec 模型階段，ADR-018 §7）。
 #
-# 只宣告「要跑什麼」——預期結果一律由 CI 重新執行後判定，本檔不得宣告結果。
-# 每個實例常數都附 domain_justification（Q21）。
+# 只宣告「要跑什麼」——預期結果一律由 CI 重新執行後判定，本檔不宣告任何結果。
+# 每個實例常數都附 domain_justification（建模規則 1）。
 #
-# ORDER_IDS 為符號化的訂單編號集合。程式以 UUID 產生訂單編號、不限制訂單筆數：
-#   - OrderService.java:35-37：orderNumber 為空時以 UUID.randomUUID() 產生
-#   - OrderMapper.java:16：建立 entity 時指派 UUID
-#   - OrderRepository.java：只有 findByOrderNumber 等查詢，無數量上限或檢查
-# 因此取最小邊界 1，以及偶數 2、奇數 3，涵蓋邊界與奇偶。
+# 牆鐘量測（本機，quint 0.32.0，rust backend，max_samples 10000）：
+#   - 6 條 INV_* 併為一次 run（最壞情況）：oneOrder 1.9s／twoOrders 7.1s／threeOrders 9.7s
+#     （max_steps 16）；threeOrders 於 max_steps 30 為 11.9s。
+#   - 因此單項 timeout_seconds 取 70（深度檢查 120），約為量測值的 6–10 倍餘裕；
+#     21 項合計 1620 秒，未超過 1800 秒上限。
+#
+# mode 一律為 run（隨機模擬）。mode: verify（Apalache 窮盡）在本次環境已量測可行
+# （oneOrder：max_steps 4 → 14.0s、max_steps 8 → 34.0s），但需要覆寫 HOME 才能建立
+# ~/.quint/apalache-dist-0.56.1（沙箱下 EACCES），且會在工作目錄產生未被 .gitignore
+# 收錄的 _apalache-out/。是否在 CI 開啟 verify 模式列為未決事項，交由人類決定。
 
 instances:
   - module: oneOrder
     constants:
       ORDER_IDS:
         value: 'Set("o1")'
-        domain_justification: "程式未限制訂單筆數（OrderService.java:35-37 以 UUID 產生編號、OrderMapper.java:16、OrderRepository.java 無數量檢查）；取最小邊界 1。"
+        domain_justification: "程式未限制同時存在的訂單筆數（OrderService.java:36-38 以 UUID.randomUUID() 產生 orderNumber、OrderMapper.java:17 一律指派新 UUID、OrderRepository.java 只有查詢與 updateTimestamps，沒有數量檢查）；取最小邊界 1。"
   - module: twoOrders
     constants:
       ORDER_IDS:
         value: 'Set("o1", "o2")'
-        domain_justification: "程式未限制訂單筆數（OrderService.java:35-37 以 UUID 產生編號、OrderMapper.java:16、OrderRepository.java 無數量檢查）；取偶數 2 涵蓋多鍵交錯。"
+        domain_justification: "程式未限制同時存在的訂單筆數（OrderService.java:36-38、OrderMapper.java:17、OrderRepository.java 皆無數量檢查）；取偶數 2，涵蓋多鍵交錯。"
   - module: threeOrders
     constants:
       ORDER_IDS:
         value: 'Set("o1", "o2", "o3")'
-        domain_justification: "程式未限制訂單筆數（OrderService.java:35-37 以 UUID 產生編號、OrderMapper.java:16、OrderRepository.java 無數量檢查）；取奇數 3 涵蓋邊界與奇偶。"
+        domain_justification: "程式未限制同時存在的訂單筆數（OrderService.java:36-38、OrderMapper.java:17、OrderRepository.java 皆無數量檢查）；取奇數 3，與 1、2 合併涵蓋邊界值與奇偶兩種情況。"
+
 checks:
-  # INV_newOrderStartsNew（R1）：建立時的寫入必須為 NEW。
-  - { instance: oneOrder, invariant: INV_newOrderStartsNew, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_orderCreatedAsNew] }
-  - { instance: twoOrders, invariant: INV_newOrderStartsNew, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_orderCreatedAsNew] }
-  - { instance: threeOrders, invariant: INV_newOrderStartsNew, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_orderCreatedAsNew] }
+  # INV_newOrderStartsNew（R1）：已提交的建立寫入必須是 NEW。
+  - { instance: oneOrder, invariant: INV_newOrderStartsNew, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_orderCreatedAsNew] }
+  - { instance: twoOrders, invariant: INV_newOrderStartsNew, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_orderCreatedAsNew] }
+  - { instance: threeOrders, invariant: INV_newOrderStartsNew, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_orderCreatedAsNew] }
 
-  # INV_normalFlowIsSingleStep（R2）：正常流程必須逐階前進。
-  - { instance: oneOrder, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_normalForwardStep] }
-  - { instance: twoOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_normalForwardStep] }
-  - { instance: threeOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_normalForwardStep] }
+  # INV_normalFlowIsSingleStep（R2）：正常流程只能逐階前進。
+  - { instance: oneOrder, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_normalForwardStep] }
+  - { instance: twoOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_normalForwardStep] }
+  - { instance: threeOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_normalForwardStep] }
 
-  # INV_cancelOnlyFromNewOrPending（R3）：只有 NEW／PENDING 可取消。
-  - { instance: oneOrder, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_cancelFromAllowed] }
-  - { instance: twoOrders, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_cancelFromAllowed] }
-  - { instance: threeOrders, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_cancelFromAllowed] }
+  # INV_normalFlowIsSingleStep（R2，深度檢查）：走完 NEW→…→DELIVERED 整條鏈至少需要
+  # 11 個步驟，max_steps 16 下 threeOrders 量到 0 條軌跡，故另立 max_steps 30 的檢查。
+  - { instance: oneOrder, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 30, max_samples: 10000, timeout_seconds: 120, witnesses: [WIT_deliveredReached, WIT_normalForwardStep] }
+  - { instance: twoOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 30, max_samples: 10000, timeout_seconds: 120, witnesses: [WIT_deliveredReached, WIT_normalForwardStep] }
+  - { instance: threeOrders, invariant: INV_normalFlowIsSingleStep, mode: run, max_steps: 30, max_samples: 10000, timeout_seconds: 120, witnesses: [WIT_deliveredReached, WIT_normalForwardStep] }
 
-  # INV_errorOnlyFromAllowed（R4）：只有允許的來源狀態可轉 ERROR。
-  - { instance: oneOrder, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_errorFromAllowed] }
-  - { instance: twoOrders, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_errorFromAllowed] }
-  - { instance: threeOrders, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_errorFromAllowed] }
+  # INV_cancelOnlyFromNewOrPending（R3）：只有 NEW／PENDING 可以轉為 CANCELLED。
+  - { instance: oneOrder, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_cancelCommitted] }
+  - { instance: twoOrders, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_cancelCommitted] }
+  - { instance: threeOrders, invariant: INV_cancelOnlyFromNewOrPending, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_cancelCommitted] }
 
-  # INV_onlyPermittedTransitions（R5）：R2–R4 以外的轉移一律不允許。
-  - { instance: oneOrder, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_permittedTransition] }
-  - { instance: twoOrders, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_permittedTransition] }
-  - { instance: threeOrders, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_permittedTransition] }
+  # INV_errorOnlyFromAllowed（R4）：只有 NEW／PENDING／CONFIRMED／IN_PROCESS 可以轉為 ERROR。
+  - { instance: oneOrder, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_errorCommitted] }
+  - { instance: twoOrders, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_errorCommitted] }
+  - { instance: threeOrders, invariant: INV_errorOnlyFromAllowed, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_errorCommitted] }
 
-  # INV_committedWritesAreSequentialAndFresh（R6）：不得依過期讀取覆寫。
-  - { instance: oneOrder, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_freshSequentialWrite] }
-  - { instance: twoOrders, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_freshSequentialWrite] }
-  - { instance: threeOrders, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 12, max_samples: 10000, timeout_seconds: 90, witnesses: [WIT_freshSequentialWrite] }
+  # INV_onlyPermittedTransitions（R5）：終態不得再轉移，R2–R4 以外的轉移一律不允許。
+  - { instance: oneOrder, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_statusTransitionCommitted, WIT_terminalStateReached] }
+  - { instance: twoOrders, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_statusTransitionCommitted, WIT_terminalStateReached] }
+  - { instance: threeOrders, invariant: INV_onlyPermittedTransitions, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_statusTransitionCommitted, WIT_terminalStateReached] }
+
+  # INV_committedWritesAreSequentialAndFresh（R6）：不得依過期讀取覆寫已提交狀態。
+  - { instance: oneOrder, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_concurrentTxnsOnSameOrder, WIT_staleReaderExists, WIT_staleWriteRejected] }
+  - { instance: twoOrders, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_concurrentTxnsOnSameOrder, WIT_staleReaderExists, WIT_staleWriteRejected] }
+  - { instance: threeOrders, invariant: INV_committedWritesAreSequentialAndFresh, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 70, witnesses: [WIT_concurrentTxnsOnSameOrder, WIT_staleReaderExists, WIT_staleWriteRejected] }
