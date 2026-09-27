@@ -5,9 +5,13 @@
 //   - failureThreshold、circuitOpenDuration、failureWindow 由 @Value 注入
 //     （CacheErrorHandler.java:36-41 委派到 :48-53 的建構子），程式沒有任何範圍檢查
 //     → 涵蓋邊界值與奇偶。
-//   - THREADS 是併發呼叫端，程式未限制數量 → 涵蓋 2 與 3。
+//   - THREADS 是併發呼叫端，程式未限制數量 → 涵蓋邊界 1（完全無併發）、2、3。
 //   - successThreshold、maxHalfOpenRequests 程式無對應設定 → 依 Issue #50 採規格
 //     最小合法值 1。
+//
+// 2026-09-27 不變量重做後複驗（PR #79）：`CacheErrorHandler` 本輪**沒有變更**
+// （git log 顯示最後一次修改是 #73），因此四組常數與其 domain_justification 沿用上一輪
+// （PR #78）逐項核對過的值，本檔不改任何實例參數。
 
 // 邊界組：門檻 1（首次失敗即開路）、time-out 1、視窗 2（偶數）、2 個呼叫端。
 module cb_t1_d1_w2 {
