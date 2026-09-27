@@ -1,11 +1,15 @@
 package com.sivalabs.bookstore.orders.config;
 
+import com.sivalabs.bookstore.orders.grpc.proto.OrdersServiceGrpc;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptor;
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
+import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import java.util.concurrent.TimeUnit;
 import net.devh.boot.grpc.server.serverfactory.GrpcServerConfigurer;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,6 +28,12 @@ public class GrpcServerConfiguration {
             configureInterceptors(serverBuilder, serverInterceptors);
             configureReflection(serverBuilder, properties);
         };
+    }
+
+    @Bean
+    SmartInitializingSingleton ordersServiceHealthStatus(ObjectProvider<HealthStatusManager> healthStatusManager) {
+        return () -> healthStatusManager.ifAvailable(
+                manager -> manager.setStatus(OrdersServiceGrpc.SERVICE_NAME, ServingStatus.SERVING));
     }
 
     private void configureBaseServerOptions(ServerBuilder<?> serverBuilder, GrpcServerProperties properties) {

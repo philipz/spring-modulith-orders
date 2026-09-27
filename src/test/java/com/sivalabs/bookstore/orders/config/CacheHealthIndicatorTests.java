@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hazelcast.config.Config;
 import com.hazelcast.config.MapConfig;
+import com.hazelcast.config.MapStoreConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.sivalabs.bookstore.orders.cache.CacheErrorHandler;
+import com.sivalabs.bookstore.orders.cache.OrderMapStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,5 +76,28 @@ class CacheHealthIndicatorTests {
         var hazelcastDetails =
                 (java.util.Map<String, Object>) health.getDetails().get("hazelcast");
         assertThat(hazelcastDetails.get("status")).isIn("NOT_RUNNING", "ERROR");
+    }
+
+    @Test
+    @DisplayName("Health indicator should report UP when orders cache uses a write-through OrderMapStore")
+    void shouldReportUpWhenOrdersCacheHasWriteThroughMapStore() {
+        Config config = new Config();
+        config.setInstanceName("orders-cache-test-" + System.nanoTime());
+        config.setClusterName("orders-cache-tests");
+        config.addMapConfig(new MapConfig("orders-cache")
+                .setMapStoreConfig(new MapStoreConfig()
+                        .setEnabled(true)
+                        .setImplementation(new OrderMapStore())
+                        .setWriteDelaySeconds(0)));
+        hazelcastInstance = Hazelcast.newHazelcastInstance(config);
+        IMap<String, Object> ordersCache = hazelcastInstance.getMap("orders-cache");
+
+        CacheHealthIndicator indicator = new CacheHealthIndicator(
+                hazelcastInstance, ordersCache, new CacheProperties(), new CacheErrorHandler());
+
+        var health = indicator.health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        assertThat(ordersCache.size()).isZero();
     }
 }

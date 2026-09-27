@@ -24,7 +24,10 @@ public class HttpProductCatalogClient implements ProductCatalogPort {
         this.catalogRestClient = catalogRestClient;
     }
 
+    // Resilience annotations sit on the public entry point so calls go through the Spring proxy
     @Override
+    @CircuitBreaker(name = CATALOG_CIRCUIT_BREAKER, fallbackMethod = "handleFetchFailure")
+    @Retry(name = CATALOG_CIRCUIT_BREAKER)
     public void validate(String productCode, BigDecimal price) {
         CatalogProductResponse product = fetchProduct(productCode);
 
@@ -38,8 +41,6 @@ public class HttpProductCatalogClient implements ProductCatalogPort {
         }
     }
 
-    @CircuitBreaker(name = CATALOG_CIRCUIT_BREAKER, fallbackMethod = "handleFetchFailure")
-    @Retry(name = CATALOG_CIRCUIT_BREAKER)
     CatalogProductResponse fetchProduct(String productCode) {
         return catalogRestClient
                 .get()
@@ -51,7 +52,11 @@ public class HttpProductCatalogClient implements ProductCatalogPort {
                 .body(CatalogProductResponse.class);
     }
 
-    CatalogProductResponse handleFetchFailure(String productCode, Throwable throwable) {
+    void handleFetchFailure(String productCode, BigDecimal price, InvalidOrderException exception) {
+        throw exception;
+    }
+
+    void handleFetchFailure(String productCode, BigDecimal price, Throwable throwable) {
         log.error("Catalog API unavailable for product {}: {}", productCode, throwable.getMessage());
         throw new CatalogServiceException("Unable to fetch product details from catalog service", throwable);
     }

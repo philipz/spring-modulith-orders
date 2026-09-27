@@ -2,7 +2,34 @@
 
 ## Overview
 
-This service provides comprehensive OpenAPI/Swagger documentation for all REST endpoints.
+This service provides OpenAPI 3.0 / Swagger documentation for its HTTP REST endpoints using SpringDoc.
+
+> [!NOTE]
+> **Primary API Architecture**: Inter-service communication for orders has migrated to **gRPC** (`OrdersGrpcService`, port `9090`, contract defined in `src/main/proto/orders.proto`). The legacy Orders REST API is **deprecated** and disabled by default.
+
+## API Endpoints
+
+### 1. Orders API (Legacy / Backward Compatibility)
+
+> [!IMPORTANT]
+> The Orders REST controller is protected by `@ConditionalOnProperty(name = "orders.rest.enabled", havingValue = "true")`.
+> To view and access `/api/orders` endpoints in Swagger UI, you must start the service with:
+> ```bash
+> export ORDERS_REST_ENABLED=true
+> ./mvnw spring-boot:run
+> ```
+
+- `POST /api/orders` - Create a new order
+- `GET /api/orders` - Get all orders (paginated)
+- `GET /api/orders/{orderNumber}` - Get order by unique order number
+
+### 2. Cart API (Active)
+
+The Cart API is enabled by default for session-based shopping cart management:
+
+- `GET /api/cart` - Retrieve current cart from session
+- `POST /api/cart/items` - Add product item to cart
+- `PUT /api/cart/items/{productCode}` - Update item quantity in cart
 
 ## OpenAPI Endpoints
 
@@ -15,50 +42,31 @@ Once the service is running, the following endpoints are available:
 
 ### Swagger UI
 - **URL**: `http://localhost:8091/swagger-ui.html`
-- **Description**: Interactive web interface for exploring and testing the API
-
-## API Endpoints Documented
-
-### Orders API
-- `POST /api/orders` - Create a new order
-- `GET /api/orders` - Get all orders
-- `GET /api/orders/{orderNumber}` - Get order by order number
+- **Description**: Interactive web interface for exploring and testing the REST API
 
 ## Schema Documentation
 
-All request/response DTOs are fully documented with:
-- Field descriptions and examples
-- Validation constraints
-- Required field indicators
-- Data types and formats
+All request/response DTOs are documented with validation constraints and schemas:
 
 ### Key Schemas
-- `CreateOrderRequest` - Request to create new orders
-- `CreateOrderResponse` - Response after order creation
-- `OrderDto` - Complete order information
-- `OrderView` - Simplified order view for listings
-- `Customer` - Customer information
-- `OrderItem` - Order item details
-- `OrderStatus` - Order status enumeration
+- `CreateOrderRequest` - Request payload to create new orders
+- `CreateOrderResponse` - Response payload after order creation
+- `OrderDto` - Complete order information model
+- `OrderView` - Simplified summary view for order listings
+- `CartDto` - Cart contents and item details
+- `AddToCartRequest` - Payload to add items to cart
+- `UpdateQuantityRequest` - Payload to update cart item quantity
 
 ## Configuration
 
-The OpenAPI documentation is configured with:
-- Service title: "Orders Service API"
-- Description: "Orders microservice extracted from the bookstore modular monolith"
-- Version: "1.0.0"
-- Development server: "http://localhost:8091"
-- Sorted operations and tags alphabetically
-- Actuator endpoints excluded from documentation
+The OpenAPI documentation is configured in `OpenApiConfig.java` and `application.properties`:
+- **Title**: `Orders Service API`
+- **Description**: `Orders microservice extracted from the bookstore modular monolith`
+- **Version**: `1.0.0`
+- **Server**: `http://localhost:8091`
+- Actuator endpoints are excluded from the public OpenAPI documentation (`springdoc.show-actuator=false`)
 
-## Usage
+## gRPC vs OpenAPI
 
-1. Start the orders service
-2. Navigate to `http://localhost:8091/swagger-ui.html` to explore the API interactively
-3. Use `http://localhost:8091/api-docs` to access the raw OpenAPI specification
-
-The OpenAPI specification can be used for:
-- API contract validation
-- Code generation for clients
-- Integration with API gateways
-- Contract testing frameworks
+- **REST Endpoints**: Documented via OpenAPI 3.0 at `http://localhost:8091/swagger-ui.html`.
+- **gRPC Services**: Defined in Protocol Buffers (`src/main/proto/orders.proto` and `src/main/proto/catalog.proto`), running on port `9090` with gRPC reflection enabled (`grpc.server.reflection-service-enabled=true`).

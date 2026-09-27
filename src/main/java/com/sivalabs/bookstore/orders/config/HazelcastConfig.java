@@ -35,6 +35,8 @@ public class HazelcastConfig {
         config.setClusterName("orders-cluster");
         config.getJetConfig().setEnabled(true);
         config.setManagedContext(new SpringManagedContext());
+        // Deserialize cached entities with the application's class loader (devtools uses a restart class loader)
+        config.setClassLoader(getClass().getClassLoader());
 
         MapConfig ordersCacheConfig = new MapConfig(ORDERS_CACHE_NAME);
         EvictionConfig evictionConfig = new EvictionConfig();

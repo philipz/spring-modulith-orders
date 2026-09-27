@@ -1,6 +1,6 @@
 # spring-modulith-orders
 
-Spring Modulith Orders 服務是以 Spring Boot 3.5 為基礎的訂單子系統，獨立拆分自模組化單體，透過 gRPC 與其他域服務整合，並使用 Liquibase、RabbitMQ 與 Hazelcast 提供資料一致性與事件驅動能力。
+Spring Modulith Orders 服務是以 Spring Boot 4.1.1 為基礎的訂單子系統，獨立拆分自模組化單體，透過 gRPC 與其他域服務整合，並使用 Liquibase、RabbitMQ 與 Hazelcast 提供資料一致性與事件驅動能力。
 
 ## 專案結構
 - `src/main/java/com/sivalabs/bookstore/orders`：以模組化 slice 分層 (`domain`, `web`, `api`, `grpc`, `events`, `infrastructure`, `cache`, `migration`)。
@@ -10,8 +10,8 @@ Spring Modulith Orders 服務是以 Spring Boot 3.5 為基礎的訂單子系統�
 - `scripts/rollback.sql`：進行資料回滾或手動驗證時使用。
 
 ## gRPC 版本約束
-- `io.grpc.*` 與 `grpc-spring-boot-starter` 透過 `pom.xml` 的 `<grpc.version>` 與 `grpc-bom` import 統一鎖定在 **1.83.1 / 3.1.0.RELEASE**。
-- **所有 `io.grpc` artifact 必須保持相同版本**：grpc-java 在 1.83 已移除 `io.grpc.InternalGlobalInterceptors`，若只升級單一 artifact（例如只升 `grpc-protobuf`）會造成 classpath 版本落差，Spring context 啟動失敗並導致所有 gRPC 整合測試紅燈（issue #27）。每次調整 grpc 版本時請一併更新，並以 `GrpcStackCompatibilityTests` 驗證版本一致。
+- `io.grpc.*` 與 `grpc-spring-boot-starter` 透過 `pom.xml` 的 `<grpc.version>` 與 `grpc-bom` import 統一鎖定在 **1.84.0 / 3.1.0.RELEASE**。
+- **所有 `io.grpc` artifact 必須保持相同版本**：grpc-java 在 1.83+ 已移除 `io.grpc.InternalGlobalInterceptors`，若只升級單一 artifact（例如只升 `grpc-protobuf`）會造成 classpath 版本落差，Spring context 啟動失敗並導致所有 gRPC 整合測試紅燈（issue #27）。每次調整 grpc 版本時請一併更新，並以 `GrpcStackCompatibilityTests` 驗證版本一致。
 
 ## 先決條件
 - JDK 21
@@ -36,6 +36,6 @@ Spring Modulith Orders 服務是以 Spring Boot 3.5 為基礎的訂單子系統�
 
 ## 延伸文件
 - `docs/orders-optimistic-locking.md`：訂單並行更新的樂觀鎖設計與呼叫端須知
-- `README-OpenAPI.md`：REST 與 gRPC API 說明
+- `README-OpenAPI.md`：REST API (OpenAPI) 說明與啟用指引
 - `README-deployment.md`：部署建議與觀察性設定
 - `AGENTS.md`：貢獻者指南、程式碼風格與 PR 建議
