@@ -1,0 +1,80 @@
+# Circuit Breaker as-is 模型的驗證清單（ADR-018 §7）。
+#
+# 本檔只宣告「要跑什麼」：實例常數、不變量、步數、逾時與情境 witness；
+# 不宣告預期結果——每條 INV_* 的結果一律由 CI 依 verify.yml 重新執行判定。
+#
+# 常數範圍以程式實際接受的輸入為準：
+#   failureThreshold 與 circuitOpenDuration 由 @Value 注入、程式未限制，
+#   故涵蓋邊界值與奇偶；successThreshold／maxHalfOpenRequests／failureWindow
+#   程式無對應設定，依 Issue #50 採規格最小合法值與固定視窗。
+
+instances:
+  - module: cb_t1_d1_w2
+    constants:
+      failureThreshold:
+        value: "1"
+        domain_justification: "src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java:31 @Value 注入任意 int（預設 5），未限制範圍；取邊界值 1"
+      successThreshold:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定；Issue #50 指定採規格最小合法值 1（source.md §Solution 只說 a specified number）"
+      circuitOpenDuration:
+        value: "1"
+        domain_justification: "CacheErrorHandler.java:32 @Value 注入任意 long（毫秒），未限制範圍；邏輯時鐘下取邊界值 1"
+      failureWindow:
+        value: "2"
+        domain_justification: "CacheErrorHandler 無對應設定（Closed 失敗計數無時窗重設機制）；Issue #50 指定固定視窗，取 2（偶數）"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定（Half-Open 無放行上限）；Issue #50 指定採規格最小合法值 1"
+  - module: cb_t2_d2_w3
+    constants:
+      failureThreshold:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:31 @Value 注入任意 int，未限制範圍；取偶數 2 涵蓋 parity"
+      successThreshold:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:32 @Value 注入任意 long，未限制範圍；取偶數 2 涵蓋 parity"
+      failureWindow:
+        value: "3"
+        domain_justification: "CacheErrorHandler 無對應設定；Issue #50 指定固定視窗，取 3（奇數）"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定（Half-Open 無放行上限）；Issue #50 指定採規格最小合法值 1"
+  - module: cb_t3_d1_w2
+    constants:
+      failureThreshold:
+        value: "3"
+        domain_justification: "CacheErrorHandler.java:31 @Value 注入任意 int，未限制範圍；取奇數 3 涵蓋 parity"
+      successThreshold:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "1"
+        domain_justification: "CacheErrorHandler.java:32 @Value 注入任意 long，未限制範圍；取邊界值 1"
+      failureWindow:
+        value: "2"
+        domain_justification: "CacheErrorHandler 無對應設定；Issue #50 指定固定視窗，取 2（偶數）"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "CacheErrorHandler 無對應設定（Half-Open 無放行上限）；Issue #50 指定採規格最小合法值 1"
+
+checks:
+  - { instance: cb_t1_d1_w2, invariant: INV_openRejectsOperation, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_openShortCircuits] }
+  - { instance: cb_t2_d2_w3, invariant: INV_openRejectsOperation, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_openShortCircuits] }
+  - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_closedWithFailures] }
+  - { instance: cb_t3_d1_w2, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_closedWithFailures] }
+  - { instance: cb_t1_d1_w2, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_circuitOpenedByFailures] }
+  - { instance: cb_t3_d1_w2, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_circuitOpenedByFailures] }
+  - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_failureWindowElapsed] }
+  - { instance: cb_t3_d1_w2, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_failureWindowElapsed] }
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenAdmitsRequest] }
+  - { instance: cb_t3_d1_w2, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenAdmitsRequest] }
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_closedAfterHalfOpenSuccess] }
+  - { instance: cb_t2_d2_w3, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_closedAfterHalfOpenSuccess] }
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenRequestFails] }
+  - { instance: cb_t2_d2_w3, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenRequestFails] }
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenFailureKeepsCircuit] }
+  - { instance: cb_t3_d1_w2, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 16, max_samples: 10000, timeout_seconds: 60, witnesses: [WIT_halfOpenFailureKeepsCircuit] }
