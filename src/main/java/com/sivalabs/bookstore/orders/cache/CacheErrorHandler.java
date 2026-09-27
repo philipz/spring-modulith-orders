@@ -17,6 +17,7 @@ public class CacheErrorHandler {
 
     private final int failureThreshold;
     private final Duration circuitOpenDuration;
+    private final Duration failureWindow;
 
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     private volatile LocalDateTime circuitOpenedAt = null;
@@ -30,13 +31,19 @@ public class CacheErrorHandler {
     public CacheErrorHandler(
             @Value("${bookstore.cache.circuit-breaker-failure-threshold:5}") int failureThreshold,
             @Value("${bookstore.cache.circuit-breaker-recovery-timeout-ms:30000}") long circuitOpenMs) {
+        this(failureThreshold, circuitOpenMs, 60_000L);
+    }
+
+    // Test-friendly constructor overload: lets tests pin a short failure window without waiting
+    // for the production default. Behaviour wiring of the window lands in the impl layer.
+    public CacheErrorHandler(int failureThreshold, long circuitOpenMs, long failureWindowMs) {
         this.failureThreshold = failureThreshold;
         this.circuitOpenDuration = Duration.ofMillis(circuitOpenMs);
+        this.failureWindow = Duration.ofMillis(failureWindowMs);
     }
 
     public CacheErrorHandler() {
-        this.failureThreshold = 5;
-        this.circuitOpenDuration = Duration.ofMillis(30_000L);
+        this(5, 30_000L, 60_000L);
     }
 
     public <T> T executeWithFallback(Supplier<T> operation, String operationName, String key) {

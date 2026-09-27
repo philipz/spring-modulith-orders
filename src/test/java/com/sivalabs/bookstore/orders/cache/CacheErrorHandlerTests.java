@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -389,6 +390,146 @@ class CacheErrorHandlerTests {
 
             assertThat(healthy).isFalse();
             assertThat(handler.isCircuitOpen()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Half-open state machine and failure window (issue #56)")
+    class HalfOpenStateMachine {
+
+        // These tests reproduce the three violations found by the as-is model of issue #50
+        // (specs/circuit-breaker traces INV_halfOpenFailureReopens, INV_halfOpenFailureRestartsTimer,
+        // INV_halfOpenBoundedRequests, INV_closedFailureCounterResetsPeriodically). They are kept
+        // @Disabled on the 01-test layer so the layer stays green; the 02-impl layer of the stack
+        // un-disables them together with the fix in CacheErrorHandler.
+
+        @Test
+        @Disabled("Fails until factory/56-02-impl fixes the half-open handling (issue #56)")
+        @DisplayName("Should reopen the circuit and restart the timer when a half-open trial fails")
+        void halfOpenFailureReopensCircuitAndRestartsTimer() throws InterruptedException {
+            // threshold = 2 failures, recovery timeout = 100 ms
+            CacheErrorHandler handler = new CacheErrorHandler(2, 100L);
+
+            for (int i = 0; i < 2; i++) {
+                handler.executeWithFallback(
+                        () -> {
+                            throw failure();
+                        },
+                        OPERATION,
+                        "key-" + i,
+                        () -> "fallback");
+            }
+            assertThat(handler.isCircuitOpen()).isTrue();
+            assertThat(handler.getTotalCircuitOpenings()).isEqualTo(1);
+
+            // Let the recovery timeout elapse so the breaker turns half-open.
+            Thread.sleep(150L);
+            assertThat(handler.isCircuitOpen()).isFalse();
+
+            // A failing trial request while half-open must reopen the breaker immediately
+            // (Azure Circuit Breaker: "If any request fails ... it reverts to the Open state
+            // and restarts the time-out timer").
+            String result = handler.executeWithFallback(
+                    () -> {
+                        throw failure();
+                    },
+                    OPERATION,
+                    "key-trial",
+                    () -> "fallback");
+
+            assertThat(result).isEqualTo("fallback");
+            assertThat(handler.getTotalCircuitOpenings()).isEqualTo(2);
+            assertThat(handler.isCircuitOpen()).isTrue();
+
+            // The restarted timer must take effect right away: the next request is rejected
+            // without touching the cache even though a full recovery timeout already elapsed.
+            AtomicInteger operationCalls = new AtomicInteger();
+            String next = handler.executeWithFallback(
+                    () -> {
+                        operationCalls.incrementAndGet();
+                        return "fresh";
+                    },
+                    OPERATION,
+                    "key-next",
+                    () -> "fallback");
+
+            assertThat(next).isEqualTo("fallback");
+            assertThat(operationCalls.get()).isZero();
+        }
+
+        @Test
+        @Disabled("Fails until factory/56-02-impl fixes the half-open handling (issue #56)")
+        @DisplayName("Should admit only one trial request while half-open and only close on trial success")
+        void halfOpenAdmitsOnlyOneTrialRequest() throws InterruptedException {
+            // threshold = 1 failure, recovery timeout = 100 ms
+            CacheErrorHandler handler = new CacheErrorHandler(1, 100L);
+
+            handler.executeWithFallback(
+                    () -> {
+                        throw failure();
+                    },
+                    OPERATION,
+                    "key-0",
+                    () -> "fallback");
+            assertThat(handler.isCircuitOpen()).isTrue();
+            assertThat(handler.getTotalCircuitOpenings()).isEqualTo(1);
+
+            // Half-open: the recovery timeout elapsed.
+            Thread.sleep(150L);
+            assertThat(handler.isCircuitOpen()).isFalse();
+
+            // Three requests arrive while the cache is still failing. Only the first may probe
+            // the cache; the rest must be treated like the Open state and go straight to fallback.
+            AtomicInteger operationCalls = new AtomicInteger();
+            for (int i = 0; i < 3; i++) {
+                String result = handler.executeWithFallback(
+                        () -> {
+                            operationCalls.incrementAndGet();
+                            throw failure();
+                        },
+                        OPERATION,
+                        "key-trial-" + i,
+                        () -> "fallback");
+                assertThat(result).isEqualTo("fallback");
+            }
+            assertThat(operationCalls.get()).isEqualTo(1);
+            assertThat(handler.getTotalCircuitOpenings()).isEqualTo(2);
+            assertThat(handler.isCircuitOpen()).isTrue();
+
+            // Only after the recovery timeout elapses again may a new trial run,
+            // and a successful trial closes the circuit.
+            Thread.sleep(150L);
+            String recovered = handler.executeWithFallback(() -> "fresh", OPERATION, "key-success", () -> "fallback");
+
+            assertThat(recovered).isEqualTo("fresh");
+            assertThat(handler.isCircuitOpen()).isFalse();
+        }
+
+        @Test
+        @Disabled("Fails until factory/56-02-impl adds the failure-window reset (issue #56)")
+        @DisplayName("Should restart the closed-state failure counter once the failure window elapses")
+        void closedFailureCounterResetsAfterFailureWindow() throws InterruptedException {
+            // threshold = 2, long recovery timeout (irrelevant here), failure window = 100 ms
+            CacheErrorHandler handler = new CacheErrorHandler(2, 30_000L, 100L);
+
+            handler.handleCacheError(failure(), OPERATION, "key-1");
+            assertThat(handler.getConsecutiveFailureCount()).isEqualTo(1);
+
+            // The failure window (100 ms) elapses before the next failure.
+            Thread.sleep(150L);
+
+            // The counter must restart with this failure instead of completing the stale window:
+            // sporadic failures spread beyond the window never trip the breaker.
+            handler.handleCacheError(failure(), OPERATION, "key-2");
+            assertThat(handler.getConsecutiveFailureCount()).isEqualTo(1);
+            assertThat(handler.isCircuitOpen()).isFalse();
+            assertThat(handler.getTotalCircuitOpenings()).isZero();
+
+            // Two failures inside the fresh window still trip the breaker as before.
+            handler.handleCacheError(failure(), OPERATION, "key-3");
+            assertThat(handler.getConsecutiveFailureCount()).isEqualTo(2);
+            assertThat(handler.isCircuitOpen()).isTrue();
+            assertThat(handler.getTotalCircuitOpenings()).isEqualTo(1);
         }
     }
 }
