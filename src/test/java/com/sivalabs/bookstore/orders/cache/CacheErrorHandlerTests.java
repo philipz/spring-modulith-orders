@@ -9,7 +9,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -577,8 +576,6 @@ class CacheErrorHandlerTests {
         }
 
         @Test
-        @Disabled(
-                "Red before the 02-impl fix for issue #73 (stale counter after window expiry); re-enabled in that layer")
         void failureCounterReadsZeroImmediatelyAfterWindowElapsesWithoutNewFailure() {
             // threshold = 2, long recovery timeout (irrelevant here), failure window = 100 ms
             MutableClock clock = new MutableClock(START);
@@ -598,8 +595,6 @@ class CacheErrorHandlerTests {
         }
 
         @Test
-        @Disabled(
-                "Red before the 02-impl fix for issue #73 (>= window boundary must restart counting); re-enabled in that layer")
         void twoFailuresExactlyOneWindowApartMustNotBeMergedIntoOneTrip() {
             MutableClock clock = new MutableClock(START);
             CacheErrorHandler handler = new CacheErrorHandler(2, 30_000L, 100L, clock);
