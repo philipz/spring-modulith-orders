@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -399,12 +398,10 @@ class CacheErrorHandlerTests {
 
         // These tests reproduce the three violations found by the as-is model of issue #50
         // (specs/circuit-breaker traces INV_halfOpenFailureReopens, INV_halfOpenFailureRestartsTimer,
-        // INV_halfOpenBoundedRequests, INV_closedFailureCounterResetsPeriodically). They are kept
-        // @Disabled on the 01-test layer so the layer stays green; the 02-impl layer of the stack
-        // un-disables them together with the fix in CacheErrorHandler.
+        // INV_halfOpenBoundedRequests, INV_closedFailureCounterResetsPeriodically). They were red
+        // before the CacheErrorHandler fix landed in this layer of the stack (issue #56).
 
         @Test
-        @Disabled("Fails until factory/56-02-impl fixes the half-open handling (issue #56)")
         @DisplayName("Should reopen the circuit and restart the timer when a half-open trial fails")
         void halfOpenFailureReopensCircuitAndRestartsTimer() throws InterruptedException {
             // threshold = 2 failures, recovery timeout = 100 ms
@@ -458,7 +455,6 @@ class CacheErrorHandlerTests {
         }
 
         @Test
-        @Disabled("Fails until factory/56-02-impl fixes the half-open handling (issue #56)")
         @DisplayName("Should admit only one trial request while half-open and only close on trial success")
         void halfOpenAdmitsOnlyOneTrialRequest() throws InterruptedException {
             // threshold = 1 failure, recovery timeout = 100 ms
@@ -506,7 +502,6 @@ class CacheErrorHandlerTests {
         }
 
         @Test
-        @Disabled("Fails until factory/56-02-impl adds the failure-window reset (issue #56)")
         @DisplayName("Should restart the closed-state failure counter once the failure window elapses")
         void closedFailureCounterResetsAfterFailureWindow() throws InterruptedException {
             // threshold = 2, long recovery timeout (irrelevant here), failure window = 100 ms
