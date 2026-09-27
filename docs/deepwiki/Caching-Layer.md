@@ -34,7 +34,7 @@ ConcreteCache1["Cache Service 1<br>extends AbstractCacheService"]
 ConcreteCache2["Cache Service 2<br>extends AbstractCacheService"]
 IMap["IMap<K, Object><br>(Distributed Cache)"]
 HazelcastInstance["HazelcastInstance<br>(Cluster Member)"]
-CircuitBreakerConfig["bookstore.cache.circuit-breaker-failure-threshold<br>bookstore.cache.circuit-breaker-recovery-timeout-ms"]
+CircuitBreakerConfig["bookstore.cache.circuit-breaker-failure-threshold<br>bookstore.cache.circuit-breaker-recovery-timeout-ms<br>bookstore.cache.circuit-breaker-failure-window-ms"]
 
 ConcreteCache1 --> AbstractCacheService
 ConcreteCache2 --> AbstractCacheService
@@ -157,22 +157,40 @@ The `CacheErrorHandler` implements a custom circuit breaker specifically designe
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CLOSED : "failures >= threshold"
-    CLOSED --> OPEN : "failures >= threshold"
+    [*] --> CLOSED : "initial state"
+    CLOSED --> OPEN : "failures >= threshold within failure window"
     OPEN --> HALF_OPEN : "recovery timeout elapsed"
-    HALF_OPEN --> CLOSED : "health check succeeds"
-    HALF_OPEN --> OPEN : "recovery timeout elapsed"
+    HALF_OPEN --> CLOSED : "trial request succeeds"
+    HALF_OPEN --> OPEN : "trial request fails (timer restarts)"
 ```
 
 **Diagram: Cache Circuit Breaker State Machine**
+
+State transition rules (per `docs/specs/circuit-breaker.md`, Azure Circuit Breaker pattern, issue #56):
+
+- **Closed:** failures are counted only within the rolling failure window
+  (`bookstore.cache.circuit-breaker-failure-window-ms`). If the time since the window's first
+  failure exceeds the window, the counter restarts with the current failure, so sporadic
+  failures spread over time never trip the breaker.
+- **Open:** every request bypasses the cache and returns the fallback immediately.
+- **Half-open:** once the recovery timeout elapses, exactly one trial request is admitted;
+  all other requests keep being treated like the Open state. A successful trial closes the
+  circuit and resets the failure counter. A failing trial reopens the circuit immediately and
+  restarts the recovery timer. A passing health check (`checkCacheHealth`) also closes the circuit.
+- `isCircuitOpen()` is a side-effect-free observer (used by health indicator, metrics and info
+  endpoints): it reports `false` once the breaker is half-open, but does not consume the trial
+  slot. Only the operation entry points (`executeWithFallback`, `executeVoidOperation`) gate on
+  the trial slot.
 
 **State Tracking Fields:**
 
 | Field | Type | Purpose |
 | --- | --- | --- |
 | `consecutiveFailures` | `AtomicInteger` | Count of sequential cache operation failures |
+| `firstFailureAt` | `volatile LocalDateTime` | Timestamp of the first failure inside the current failure window |
 | `circuitOpen` | `volatile boolean` | Current circuit state |
-| `circuitOpenedAt` | `volatile LocalDateTime` | Timestamp when circuit opened |
+| `circuitOpenedAt` | `volatile LocalDateTime` | Timestamp when circuit opened (reset when a half-open trial fails) |
+| `halfOpenTrialActive` | `AtomicBoolean` | Guards the single trial request admitted in the half-open state |
 | `totalCircuitOpenings` | `AtomicInteger` | Lifetime count of circuit openings |
 | `fallbackRecommendations` | `AtomicInteger` | Count of fallback operations triggered |
 | `errorCounts` | `ConcurrentHashMap<String, AtomicInteger>` | Error counts per operation type |
@@ -184,6 +202,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | `bookstore.cache.circuit-breaker-failure-threshold` | `5` | Consecutive failures before opening circuit |
 | `bookstore.cache.circuit-breaker-recovery-timeout-ms` | `30000` | Milliseconds before attempting recovery |
+| `bookstore.cache.circuit-breaker-failure-window-ms` | `60000` | Rolling window that bounds Closed-state failure counting |
 
 **Sources:** [src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java L13-L40](https://github.com/philipz/spring-modulith-orders/blob/eb506991/src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java#L13-L40)
 
@@ -526,6 +545,7 @@ This approach:
 | --- | --- | --- |
 | `bookstore.cache.circuit-breaker-failure-threshold` | `5` | Number of consecutive failures before opening circuit |
 | `bookstore.cache.circuit-breaker-recovery-timeout-ms` | `30000` | Milliseconds before attempting cache recovery (half-open state) |
+| `bookstore.cache.circuit-breaker-failure-window-ms` | `60000` | Rolling window bounding Closed-state failure counting; the counter restarts once the window's first failure is older than the window |
 
 ### Environment Variables
 
@@ -537,6 +557,9 @@ BOOKSTORE_CACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD=10
 
 # Faster recovery attempts
 BOOKSTORE_CACHE_CIRCUIT_BREAKER_RECOVERY_TIMEOUT_MS=15000
+
+# Only failures clustered inside this window trip the breaker
+BOOKSTORE_CACHE_CIRCUIT_BREAKER_FAILURE_WINDOW_MS=30000
 ```
 
 ### Hazelcast Configuration
