@@ -45,6 +45,11 @@ module invariants {
   // 電路被打開的邏輯時間；-1 表示從未打開（對應 circuitOpenedAt）。
   var circuitOpenedAt: int
 
+  // 最近一次由 Closed 轉為 Open 當下的失敗計數（Closed → Open 轉移的證據）。
+  // 由 Half-Open 試探失敗而重新開路時不更新：該路徑依規格「enters the Open
+  // state immediately」不受門檻限制（見 INV_openRequiresThresholdReached）。
+  var failuresAtLastOpening: int
+
   // 目前邏輯時間（對應 LocalDateTime.now()）。
   var now: int
 
@@ -112,9 +117,13 @@ module invariants {
 
 // source: source.md §Solution
 // 「The failure threshold triggers the **Open** state only when a specified number of failures occur during a specified interval.」
-  // 門檻語意同上：Open 時失敗數必須已達門檻。
+  // 轉移性質（人工裁定 2026-09-27，僅本條改寫）：引文規定的是 Closed → Open 轉移
+  // 當下的條件，而非整段 Open 期間都維持在門檻以上的狀態條件——因此改記錄「最近一次
+  // Closed → Open 當下」的失敗數（failuresAtLastOpening），要求 Open 時該值已達門檻。
+  // Half-Open 試探失敗而重新開路（source.md：「If any invocation fails, the
+  // circuit breaker enters the **Open** state immediately」）不受門檻限制，不更新此值。
   val INV_openRequiresThresholdReached: bool =
-    circuitState == Open implies consecutiveFailures >= failureThreshold
+    circuitState == Open implies failuresAtLastOpening >= failureThreshold
 
 // source: source.md §Solution
 // 「The failure counter for the **Closed** state is time based. It automatically resets at periodic intervals.」
