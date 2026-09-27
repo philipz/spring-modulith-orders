@@ -105,13 +105,16 @@ module invariants {
 
 // source: source.md §Solution
 // 「If the number of recent failures exceeds a specified threshold within a given time period, the proxy is placed into the **Open** state and starts a time-out timer.」
+  // 門檻語意（人工審查裁定，PR #52 未決事項 1）：依「only when a specified number of
+  // failures occur」解讀為「達到門檻即開路」——Closed 時失敗數必須小於門檻。
   val INV_closedFailureCountNotExceeded: bool =
-    circuitState == Closed implies consecutiveFailures <= failureThreshold
+    circuitState == Closed implies consecutiveFailures < failureThreshold
 
 // source: source.md §Solution
 // 「The failure threshold triggers the **Open** state only when a specified number of failures occur during a specified interval.」
-  val INV_openRequiresExceededThreshold: bool =
-    circuitState == Open implies consecutiveFailures > failureThreshold
+  // 門檻語意同上：Open 時失敗數必須已達門檻。
+  val INV_openRequiresThresholdReached: bool =
+    circuitState == Open implies consecutiveFailures >= failureThreshold
 
 // source: source.md §Solution
 // 「The failure counter for the **Closed** state is time based. It automatically resets at periodic intervals.」
