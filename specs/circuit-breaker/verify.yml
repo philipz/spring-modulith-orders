@@ -1,0 +1,177 @@
+# Circuit Breaker as-is 模型的驗證清單（ADR-018 §7）。
+#
+# 本檔只宣告「要跑什麼」：實例常數、不變量、步數、逾時與情境 witness；
+# **不宣告預期結果**——每條 INV_* 的結果一律由 CI 依本檔重新執行判定。
+#
+# 建模規則 1（Q21）：設定範圍以**程式實際接受的輸入**為準。failureThreshold、
+# circuitOpenDuration、failureWindow 三個常數由 @Value 注入且程式沒有任何範圍檢查
+# （建構子 CacheErrorHandler.java:36-41 委派到 :48-53，直接賦值），因此實例涵蓋邊界值
+# 與奇偶；併發呼叫端數量（THREADS）程式同樣未限制，涵蓋 1（無併發）、2、3。
+# successThreshold／maxHalfOpenRequests 程式無對應設定，依 Issue #50 採規格最小合法值。
+#
+# 全部檢查採 mode: run（隨機模擬）。mode: verify 需要 Apalache，本環境無法安裝
+# （`quint verify` 在 $HOME/.quint 解壓時 EACCES，實測退出碼 1），量不到的數字不宣告
+# ——見 docs/specs/circuit-breaker-model.md「量測與限制」。
+#
+# 2026-09-27 不變量重做後複驗（PR #79）：INV_openRequiresThresholdReached 改為轉移性質，
+# 本檔為它補上兩條 witness。witness 的掛載位置**依實測可達性**決定（不可達的 witness 會
+# 讓 CI 判為假綠燈）：WIT_trialFailureReopenedCircuit 只在 cb_t1_d1_w2 可達
+# （circuitOpenDuration=1、failureThreshold=1，24 步內能走完「開路→期滿→試探→失敗重開」；
+# 實測 45/20000 = 0.22%），其餘三個實例在 max_steps=24 下為 0/20000，故不掛載。
+
+instances:
+  - module: cb_t1_d1_w2
+    constants:
+      failureThreshold:
+        value: "1"
+        domain_justification: "src/main/java/com/sivalabs/bookstore/orders/cache/CacheErrorHandler.java:37 @Value 注入 int，建構子 :49 直接賦值、程式未限制範圍；取邊界值 1（首次失敗即開路）"
+      successThreshold:
+        value: "1"
+        domain_justification: "程式無對應設定——recordSuccess :226-235 單次成功即 closeCircuit；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "1"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long（ms），:50 Duration.ofMillis 直接轉換、程式未限制範圍；邏輯時鐘取邊界值 1"
+      failureWindow:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long（ms），:51 直接轉換、程式未限制範圍；取偶數 2"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "程式無對應設定——以 AtomicBoolean halfOpenTrialActive（:29、:188 compareAndSet）結構上只放行 1 個試探請求；Issue #50 指定採規格最小合法值 1"
+      THREADS:
+        value: "Set(1, 2)"
+        domain_justification: "CacheErrorHandler 是 @Component 單例（:15-16），任何執行緒都可呼叫、程式未限制併發數；取 2 個併發呼叫端"
+  - module: cb_t2_d2_w3
+    constants:
+      failureThreshold:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取偶數 2 涵蓋 parity"
+      successThreshold:
+        value: "1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取偶數 2 涵蓋 parity"
+      failureWindow:
+        value: "3"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+      THREADS:
+        value: "Set(1, 2)"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取 2 個併發呼叫端"
+  - module: cb_t3_d1_w2_c3
+    constants:
+      failureThreshold:
+        value: "3"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取奇數 3 涵蓋 parity"
+      successThreshold:
+        value: "1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "1"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取邊界值 1"
+      failureWindow:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取偶數 2"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+      THREADS:
+        value: "Set(1, 2, 3)"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取 3 個併發呼叫端，涵蓋奇數與更深的交錯"
+  - module: cb_t2_d3_w4_c1
+    constants:
+      failureThreshold:
+        value: "2"
+        domain_justification: "CacheErrorHandler.java:37 @Value 注入 int、程式未限制範圍；取偶數 2"
+      successThreshold:
+        value: "1"
+        domain_justification: "程式無對應設定（recordSuccess :226-235 單次成功即關閉）；Issue #50 指定採規格最小合法值 1"
+      circuitOpenDuration:
+        value: "3"
+        domain_justification: "CacheErrorHandler.java:38 @Value 注入 long、程式未限制範圍；取奇數 3 涵蓋 parity"
+      failureWindow:
+        value: "4"
+        domain_justification: "CacheErrorHandler.java:39 @Value 注入 long、程式未限制範圍；取偶數 4"
+      maxHalfOpenRequests:
+        value: "1"
+        domain_justification: "程式無對應設定（halfOpenTrialActive :29、:188 結構上只放行 1 個）；Issue #50 指定採規格最小合法值 1"
+      THREADS:
+        value: "Set(1)"
+        domain_justification: "程式未限制併發呼叫端數量（@Component 單例 :15-16）；取邊界值 1＝完全沒有併發，用來區分「只有交錯才出現」與「單執行緒就出現」的候選發現"
+
+checks:
+  # INV_openRejectsOperation — Open 期間閘門是否真的一個請求都不放行。
+  - { instance: cb_t1_d1_w2, invariant: INV_openRejectsOperation, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_openRejectsArrivingRequest] }
+  - { instance: cb_t2_d2_w3, invariant: INV_openRejectsOperation, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_openRejectsArrivingRequest] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_openRejectsOperation, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_openRejectsArrivingRequest] }
+
+  # INV_closedFailureCountNotExceeded — 需要門檻 ≥ 2 才有「Closed 且已有失敗」的情境。
+  - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_closedAccumulatesFailures] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_closedAccumulatesFailures] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCountNotExceeded, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_closedAccumulatesFailures] }
+
+  # INV_openRequiresThresholdReached — Closed → Open 的轉移必須是失敗達門檻的結果
+  # （PR #79 的轉移性質寫法）。含單執行緒實例（cb_t2_d3_w4_c1），以區分候選發現是否依賴
+  # 併發交錯。cb_t1_d1_w2 另掛「門檻豁免路徑確實走到過」的 witness，確認不變量的成立
+  # 不是因為 Half-Open 試探失敗重新開路那個分支從未執行。
+  - { instance: cb_t1_d1_w2, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded, WIT_trialFailureReopenedCircuit] }
+  - { instance: cb_t2_d2_w3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_openRequiresThresholdReached, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_thresholdOpenedCircuit, WIT_closedToOpenTransitionRecorded] }
+
+  # INV_closedFailureCounterResetsPeriodically — 時間視窗到期後失敗計數是否自動歸零。
+  # 三個實例都涵蓋（含單執行緒 cb_t2_d3_w4_c1）。witness 除了「視窗確實走完」之外，
+  # 另外兩條對準 #73 的兩個語意：欄位還留著舊計數但讀取拿到 0，以及讀取確實把歸零
+  # 寫回欄位（expireElapsedFailureWindow）。
+  - { instance: cb_t2_d2_w3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_closedFailureCounterResetsPeriodically, mode: run, max_steps: 16, max_samples: 20000,
+      timeout_seconds: 30, witnesses: [WIT_failureWindowFullyElapsed, WIT_staleMemoReadsAsZero, WIT_expiredWindowMaterializedByRead] }
+
+  # INV_halfOpenBoundedRequests — Half-Open 放行的請求數上限。
+  # cb_t3_d1_w2_c3（門檻 3、3 個呼叫端）要湊滿 3 次失敗才會開路，Half-Open 放行是稀有
+  # 事件：24 步／20000 抽樣只中 1 次（等於隨機種子一換就可能是 0）。實測放大到
+  # 40 步／100000 抽樣後為 19 次、牆鐘 61 秒 → 採用放大後的設定。
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_halfOpenAdmitsTrial] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenBoundedRequests, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_halfOpenAdmitsTrial] }
+
+  # INV_halfOpenClosesAfterSuccessThreshold — 回到 Closed 前的連續成功次數。
+  # cb_t2_d3_w4_c1 是單執行緒且 time-out 3，24 步內湊不到「開路→期滿→試探成功→關路」
+  # （實測 0 次）。加深步數比放大抽樣便宜：40 步／20000 = 6 次（14.8s）但在 harness 複驗
+  # 只剩 1 次（過於脆弱）；60 步／40000 = 17 次、牆鐘 41 秒 → 採用後者。
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_trialSuccessClosedCircuit] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 60, max_samples: 40000,
+      timeout_seconds: 100, witnesses: [WIT_trialSuccessClosedCircuit] }
+
+  # INV_halfOpenFailureReopens — 試探請求失敗後是否回到 Open。
+  # cb_t3_d1_w2_c3 同上（門檻 3）：24 步／20000 與 40 步／20000 都是 0；
+  # 實測 40 步／100000 為 4 次、牆鐘 61 秒 → 採用放大後的設定。
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_halfOpenTrialFailed] }
+  - { instance: cb_t3_d1_w2_c3, invariant: INV_halfOpenFailureReopens, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_halfOpenTrialFailed] }
+
+  # INV_halfOpenFailureRestartsTimer — 試探失敗後 time-out 計時器是否重新起算。
+  # cb_t2_d2_w3 在 24 步／20000 只中 2 次（過於脆弱）；實測 40 步／100000 為 13 次、
+  # 牆鐘 57 秒 → 採用放大後的設定。
+  - { instance: cb_t1_d1_w2, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 24, max_samples: 20000,
+      timeout_seconds: 80, witnesses: [WIT_timerRunningAfterTrialFailure] }
+  - { instance: cb_t2_d2_w3, invariant: INV_halfOpenFailureRestartsTimer, mode: run, max_steps: 40, max_samples: 100000,
+      timeout_seconds: 150, witnesses: [WIT_timerRunningAfterTrialFailure] }

@@ -193,9 +193,8 @@ stateDiagram-v2
     SHIPPED --> DELIVERED : "Customer receives"
     NEW --> CANCELLED : "Customer cancels"
     PENDING --> CANCELLED : "Customer cancels"
-    CONFIRMED --> CANCELLED : "Fulfillment error"
-    NEW --> ERROR : "Customer cancels"
-    PENDING --> ERROR : "Customer cancels"
+    NEW --> ERROR : "Error occurs"
+    PENDING --> ERROR : "Error occurs"
     CONFIRMED --> ERROR : "Fulfillment error"
     IN_PROCESS --> ERROR : "Processing error"
     DELIVERED --> [*]
@@ -204,6 +203,21 @@ stateDiagram-v2
 ```
 
 This diagram shows the typical order lifecycle and state transitions.
+
+### Transition Enforcement
+
+`OrderService` enforces the lifecycle rules above at runtime (issue #57, business rules R1–R5 of
+issue #51):
+
+- A new order always starts in `NEW`. `createOrder` defaults a missing status to `NEW` and rejects
+  an explicit non-`NEW` initial status with `InvalidOrderException` before saving.
+- `updateOrderStatus` only accepts the forward chain `NEW → PENDING → CONFIRMED → IN_PROCESS →
+  SHIPPED → DELIVERED` (one step at a time), `NEW`/`PENDING → CANCELLED`, and
+  `NEW`/`PENDING`/`CONFIRMED`/`IN_PROCESS → ERROR`.
+- `DELIVERED`, `CANCELLED`, and `ERROR` are terminal states: no transition out of them is
+  permitted, and same-value writes (for example `PENDING → PENDING`) are rejected as well.
+- A rejected transition throws `IllegalStateException` (matching `cancelOrder`) and the order is
+  never saved.
 
 ### Enum Constants
 

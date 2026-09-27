@@ -16,6 +16,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -74,4 +75,14 @@ public class OrderEntity extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private OrderStatus status = OrderStatus.NEW;
+
+    /**
+     * Optimistic locking discriminator. A transaction that writes on top of a stale read fails with
+     * {@code ObjectOptimisticLockingFailureException} instead of silently overwriting the whole row,
+     * so concurrent status changes (for example cancel vs. confirm) can no longer lose each other.
+     * Left {@code null} for not-yet-persisted instances so Spring Data still treats them as new.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
 }
