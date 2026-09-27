@@ -1,0 +1,59 @@
+.github/workflows/test.yml
+  s_8e84f713421083::t_4c56e506d9cef9 25
+.mvn/wrapper/maven-wrapper.properties
+  s_8e84f713421083::t_ceb6c8e6b826da 3
+pom.xml
+  s_8e84f713421083::t_04a2fc1bef9761 10,23-24,28,31,61-68,75,96,138-139,172,188-190,202,228-237,242,247,252,258,281,285-302,311
+src/main/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicator.java
+  s_8e84f713421083::t_d4c527ab7ba70c 13-14
+src/main/java/com/sivalabs/bookstore/orders/config/GrpcHealthIndicator.java
+  s_8e84f713421083::t_36162f7563497b 17-18
+src/main/java/com/sivalabs/bookstore/orders/config/HazelcastConfig.java
+  s_8e84f713421083::t_b6c0faf2202db9 94-98
+src/main/java/com/sivalabs/bookstore/orders/config/JpaConfig.java
+  s_8e84f713421083::t_da7604f7febe25 3-4,6-7,14-21
+src/main/java/com/sivalabs/bookstore/orders/config/OrdersBackfillConfiguration.java
+  s_8e84f713421083::t_5ac2fd50288afa 8,17-22
+src/main/java/com/sivalabs/bookstore/orders/config/RabbitMQConfig.java
+  s_8e84f713421083::t_8534b844d8037c 10,14,68,70,75-76
+src/main/resources/application.properties
+  s_8e84f713421083::t_695045ebafaad7 68
+src/main/resources/db/migration/V5__orders_create_event_publication_table.sql
+  s_8e84f713421083::t_181d49dd03d3e7 8-10
+src/test/java/com/sivalabs/bookstore/orders/OrdersEndToEndTests.java
+  s_8e84f713421083::t_a384947d51ffd1 32-33,48
+src/test/java/com/sivalabs/bookstore/orders/OrdersLightweightIntegrationTests.java
+  s_8e84f713421083::t_31d31f9b7e036e 26,73
+src/test/java/com/sivalabs/bookstore/orders/client/OrdersGrpcServiceNetworkIntegrationTest.java
+  s_8e84f713421083::t_fcb1fe2db2c2e5 36,114,117
+src/test/java/com/sivalabs/bookstore/orders/config/CacheHealthIndicatorTests.java
+  s_8e84f713421083::t_bfd5595472dd07 14
+src/test/java/com/sivalabs/bookstore/orders/domain/OrderConcurrentUpdateIntegrationTests.java
+  s_8e84f713421083::t_8dd2fdf98ceebe 28,94
+src/test/java/com/sivalabs/bookstore/orders/infrastructure/grpc/OrdersGrpcServiceInProcessTest.java
+  s_8e84f713421083::t_a3d6f929589429 30,69-70,85,88
+src/test/java/com/sivalabs/bookstore/orders/migration/OrdersBackfillIntegrationTests.java
+  s_8e84f713421083::t_bf063219347bce 29,63-64,87
+src/test/java/com/sivalabs/bookstore/orders/web/CartRestControllerTests.java
+  s_8e84f713421083::t_40ffddadbd6a94 19,23,35,37
+src/test/java/com/sivalabs/bookstore/orders/web/OrderRestControllerTests.java
+  s_8e84f713421083::t_3f6123c4b92f06 30,33,43,45
+src/test/resources/db/test-init.sql
+  s_8e84f713421083::t_4e01d3ebbae1c9 3-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab316f57297b9c9b170a4c17aef0ab598c4dbd2a",
+  "prompts": {},
+  "sessions": {
+    "s_8e84f713421083": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b84ee15-3771-47d3-bfd1-da8f0f3b10b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
