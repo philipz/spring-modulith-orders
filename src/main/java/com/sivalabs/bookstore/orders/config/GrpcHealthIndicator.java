@@ -1,5 +1,6 @@
 package com.sivalabs.bookstore.orders.config;
 
+import com.sivalabs.bookstore.orders.grpc.proto.OrdersServiceGrpc;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckRequest;
@@ -38,7 +39,7 @@ import org.springframework.stereotype.Component;
 public class GrpcHealthIndicator implements HealthIndicator {
 
     private static final Logger logger = LoggerFactory.getLogger(GrpcHealthIndicator.class);
-    private static final String ORDERS_SERVICE_NAME = "com.sivalabs.bookstore.orders.OrdersService";
+    private static final String ORDERS_SERVICE_NAME = OrdersServiceGrpc.SERVICE_NAME;
     private static final int HEALTH_CHECK_TIMEOUT_SECONDS = 5;
 
     private final Channel grpcChannel;

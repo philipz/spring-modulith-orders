@@ -1,0 +1,43 @@
+# 本機開發用基礎設施：啟動後執行 ./mvnw spring-boot:run 即可連上
+# 連線資訊對齊 src/main/resources/application.properties 的預設值
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ordersdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ordersdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5673:5672" # 應用程式預設連 5673（SPRING_RABBITMQ_PORT）
+      - "15672:15672" # 管理介面 http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # 本機用的 catalog 替身（真正的 catalog 在外部 monolith），對應 PRODUCT_API_BASE_URL 預設的 localhost:8080
+  catalog-stub:
+    image: wiremock/wiremock:3.13.1
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./docker/catalog-stub/mappings:/home/wiremock/mappings:ro
+
+volumes:
+  postgres-data:

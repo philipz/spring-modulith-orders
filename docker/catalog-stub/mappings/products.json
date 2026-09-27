@@ -1,0 +1,33 @@
+{
+  "mappings": [
+    {
+      "request": { "method": "GET", "url": "/api/products/P100" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": "P100", "name": "The Hunger Games", "price": 34.0 }
+      }
+    },
+    {
+      "request": { "method": "GET", "url": "/api/products/P101" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": "P101", "name": "To Kill a Mockingbird", "price": 45.40 }
+      }
+    },
+    {
+      "request": { "method": "GET", "url": "/api/products/P102" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": "P102", "name": "The Chronicles of Narnia", "price": 44.50 }
+      }
+    },
+    {
+      "priority": 10,
+      "request": { "method": "GET", "urlPattern": "/api/products/.*" },
+      "response": { "status": 404 }
+    }
+  ]
+}

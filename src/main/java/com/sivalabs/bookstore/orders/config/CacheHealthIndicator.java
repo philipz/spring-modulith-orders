@@ -26,6 +26,8 @@ import org.springframework.stereotype.Component;
 public class CacheHealthIndicator implements HealthIndicator {
 
     private static final Logger logger = LoggerFactory.getLogger(CacheHealthIndicator.class);
+    // Probe a dedicated map: orders-cache is write-through to OrderMapStore and only accepts OrderEntity values
+    private static final String HEALTH_CHECK_MAP_NAME = "orders-cache-health-check";
 
     private final HazelcastInstance hazelcastInstance;
     private final IMap<String, Object> ordersCache;
@@ -147,10 +149,11 @@ public class CacheHealthIndicator implements HealthIndicator {
         String value = "health-check";
 
         try {
-            ordersCache.put(key, value);
-            Object retrieved = ordersCache.get(key);
-            boolean contains = ordersCache.containsKey(key);
-            Object removed = ordersCache.remove(key);
+            IMap<String, String> healthCheckMap = hazelcastInstance.getMap(HEALTH_CHECK_MAP_NAME);
+            healthCheckMap.put(key, value);
+            Object retrieved = healthCheckMap.get(key);
+            boolean contains = healthCheckMap.containsKey(key);
+            Object removed = healthCheckMap.remove(key);
 
             boolean success = value.equals(retrieved) && contains && value.equals(removed);
             details.put(

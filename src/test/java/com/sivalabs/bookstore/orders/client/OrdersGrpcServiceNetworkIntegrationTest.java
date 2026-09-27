@@ -11,6 +11,7 @@ import com.sivalabs.bookstore.orders.api.OrderView;
 import com.sivalabs.bookstore.orders.api.model.Customer;
 import com.sivalabs.bookstore.orders.api.model.OrderItem;
 import com.sivalabs.bookstore.orders.api.model.OrderStatus;
+import com.sivalabs.bookstore.orders.config.GrpcHealthIndicator;
 import com.sivalabs.bookstore.orders.domain.OrderEntity;
 import com.sivalabs.bookstore.orders.domain.OrderRepository;
 import com.sivalabs.bookstore.orders.domain.OrderService;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -106,6 +108,9 @@ class OrdersGrpcServiceNetworkIntegrationTest {
     private GrpcOrderMapper grpcOrderMapper;
 
     @Autowired
+    private GrpcHealthIndicator grpcHealthIndicator;
+
+    @Autowired
     private OrderRepository orderRepository;
 
     @Autowired
@@ -134,6 +139,14 @@ class OrdersGrpcServiceNetworkIntegrationTest {
         // Mock ProductCatalogPort to avoid external API calls
         // ProductCatalogPort.validate() just validates price - no return value needed
         // The validation will succeed if no exception is thrown
+    }
+
+    @Test
+    @DisplayName("Should report gRPC health UP including the Orders service status")
+    void shouldReportGrpcHealthUp() {
+        var health = grpcHealthIndicator.health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
     }
 
     @AfterEach
