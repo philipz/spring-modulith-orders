@@ -1,0 +1,18 @@
+README-OpenAPI.md
+  h_1b119f25eaf333 5-32,45,49,52-58,62-72
+README-deployment.md
+  h_1b119f25eaf333 3,10,14,18,21,24,26-28,30,33,36-40,42,44-53,57-72,76,82-83,89-91
+README.md
+  h_1b119f25eaf333 3,13-14,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8eddbdb382cf4829d554523aa7b6802a4b127802",
+  "prompts": {},
+  "humans": {
+    "h_1b119f25eaf333": {
+      "author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
