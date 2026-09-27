@@ -1,4 +1,7 @@
 module model {
+  import invariants.* from "./invariants"
+  export invariants.*
+
   // 訂單生命週期 as-is 模型（agent-write-spec 模型階段，ADR-018）。
   //
   // 來源：specs/order-lifecycle/source.md 的 R1–R6 為「規格」；
@@ -7,10 +10,8 @@ module model {
   //       src/main/java/com/sivalabs/bookstore/orders/domain/OrderEntity.java
   //       src/main/java/com/sivalabs/bookstore/orders/domain/OrderRepository.java
   //
-  // 不變量：invariants.qnt（已核准，不得修改）。以下 import／export 讓
+  // 不變量：invariants.qnt（已核准，不得修改）。以上 import／export 讓
   // instances.qnt 的實例能看見 INV_*；缺少 export 會導致 QNT404。
-  import invariants.* from "./invariants"
-  export invariants.*
 
   // ---- 模型層常數 ----
 
