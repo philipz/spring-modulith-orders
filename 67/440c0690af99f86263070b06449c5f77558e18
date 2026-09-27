@@ -1,0 +1,19 @@
+docs/specs/circuit-breaker.md
+  s_8e84f713421083::t_74c6eed9e7d10e 1-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "67440c0690af99f86263070b06449c5f77558e18",
+  "prompts": {},
+  "sessions": {
+    "s_8e84f713421083": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b84ee15-3771-47d3-bfd1-da8f0f3b10b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
