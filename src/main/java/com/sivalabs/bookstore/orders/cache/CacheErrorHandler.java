@@ -1,5 +1,6 @@
 package com.sivalabs.bookstore.orders.cache;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,6 +20,7 @@ public class CacheErrorHandler {
     private final int failureThreshold;
     private final Duration circuitOpenDuration;
     private final Duration failureWindow;
+    private final Clock clock;
 
     private final AtomicInteger consecutiveFailures = new AtomicInteger(0);
     private volatile LocalDateTime firstFailureAt = null;
@@ -35,9 +37,19 @@ public class CacheErrorHandler {
             @Value("${bookstore.cache.circuit-breaker-failure-threshold:5}") int failureThreshold,
             @Value("${bookstore.cache.circuit-breaker-recovery-timeout-ms:30000}") long circuitOpenMs,
             @Value("${bookstore.cache.circuit-breaker-failure-window-ms:60000}") long failureWindowMs) {
+        this(failureThreshold, circuitOpenMs, failureWindowMs, Clock.systemDefaultZone());
+    }
+
+    /**
+     * Test seam: an injectable {@link Clock} lets tests move the failure window forward without
+     * sleeping. Production wiring defaults to {@link Clock#systemDefaultZone()}, so the external
+     * behavior of every other constructor stays unchanged (issue #73 scope).
+     */
+    public CacheErrorHandler(int failureThreshold, long circuitOpenMs, long failureWindowMs, Clock clock) {
         this.failureThreshold = failureThreshold;
         this.circuitOpenDuration = Duration.ofMillis(circuitOpenMs);
         this.failureWindow = Duration.ofMillis(failureWindowMs);
+        this.clock = clock;
     }
 
     public CacheErrorHandler(int failureThreshold, long circuitOpenMs) {
@@ -116,18 +128,30 @@ public class CacheErrorHandler {
     /**
      * Counts a failure in the Closed state within the configured failure window
      * (bookstore.cache.circuit-breaker-failure-window-ms). Sporadic failures that spread beyond
-     * the window must not accumulate: when the elapsed time since the window's first failure
-     * exceeds the window, the counter restarts with the current failure.
+     * the window must not accumulate: once the time since the window's first failure reaches the
+     * window length the window has elapsed, so the counter restarts with the current failure.
+     * (issue #73: the comparison is inclusive - with the previous strictly-greater-than check two
+     * failures exactly one window apart were merged into the same window and could trip the
+     * breaker.)
      */
     private int registerClosedStateFailure() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime windowStart = firstFailureAt;
-        if (windowStart == null || Duration.between(windowStart, now).compareTo(failureWindow) > 0) {
+        if (windowStart == null || hasFailureWindowElapsed(windowStart, now)) {
             firstFailureAt = now;
             consecutiveFailures.set(1);
             return 1;
         }
         return consecutiveFailures.incrementAndGet();
+    }
+
+    /**
+     * The Closed-state failure counter is time based and "automatically resets at periodic
+     * intervals" (docs/specs/circuit-breaker.md): the failure window has elapsed once the time
+     * since its first failure reaches the configured window length.
+     */
+    private boolean hasFailureWindowElapsed(LocalDateTime windowStart, LocalDateTime now) {
+        return Duration.between(windowStart, now).compareTo(failureWindow) >= 0;
     }
 
     public boolean isCircuitOpen() {
@@ -136,7 +160,8 @@ public class CacheErrorHandler {
         }
 
         LocalDateTime openedAt = circuitOpenedAt;
-        if (openedAt != null && Duration.between(openedAt, LocalDateTime.now()).compareTo(circuitOpenDuration) > 0) {
+        if (openedAt != null
+                && Duration.between(openedAt, LocalDateTime.now(clock)).compareTo(circuitOpenDuration) > 0) {
             logger.info("Circuit breaker entering half-open state - attempting cache recovery");
             return false;
         }
@@ -158,7 +183,8 @@ public class CacheErrorHandler {
         }
 
         LocalDateTime openedAt = circuitOpenedAt;
-        if (openedAt != null && Duration.between(openedAt, LocalDateTime.now()).compareTo(circuitOpenDuration) > 0) {
+        if (openedAt != null
+                && Duration.between(openedAt, LocalDateTime.now(clock)).compareTo(circuitOpenDuration) > 0) {
             if (halfOpenTrialActive.compareAndSet(false, true)) {
                 logger.info("Circuit breaker entering half-open state - admitting a single trial request");
                 return false;
@@ -232,7 +258,7 @@ public class CacheErrorHandler {
 
     private void openCircuit() {
         circuitOpen = true;
-        circuitOpenedAt = LocalDateTime.now();
+        circuitOpenedAt = LocalDateTime.now(clock);
         halfOpenTrialActive.set(false);
         totalCircuitOpenings.incrementAndGet();
         logger.warn("Cache circuit breaker OPENED - bypassing the cache for the recovery timeout");
@@ -247,7 +273,23 @@ public class CacheErrorHandler {
     }
 
     public int getConsecutiveFailureCount() {
+        expireElapsedFailureWindow();
         return consecutiveFailures.get();
+    }
+
+    /**
+     * Periodic-reset half of the Closed-state failure counter (issue #73): once the failure window
+     * has elapsed the counter must read 0 immediately, even when no new failure arrives to trigger
+     * the restart inside {@link #registerClosedStateFailure()}. Readers such as
+     * {@link com.sivalabs.bookstore.orders.config.CacheHealthIndicator} and the info contributor
+     * rely on this to never report a stale count after the window expires.
+     */
+    private void expireElapsedFailureWindow() {
+        LocalDateTime windowStart = firstFailureAt;
+        if (windowStart != null && hasFailureWindowElapsed(windowStart, LocalDateTime.now(clock))) {
+            consecutiveFailures.set(0);
+            firstFailureAt = null;
+        }
     }
 
     public int getTotalCircuitOpenings() {
@@ -268,7 +310,7 @@ public class CacheErrorHandler {
 
     private void recordError(String operationName, String errorMessage) {
         errorCounts.computeIfAbsent(operationName, key -> new AtomicInteger(0)).incrementAndGet();
-        lastErrorTimes.put(operationName, LocalDateTime.now());
+        lastErrorTimes.put(operationName, LocalDateTime.now(clock));
         logger.debug("Recorded cache error for operation {}: {}", operationName, errorMessage);
     }
 }
