@@ -152,12 +152,13 @@ checks:
       timeout_seconds: 150, witnesses: [WIT_halfOpenAdmitsTrial] }
 
   # INV_halfOpenClosesAfterSuccessThreshold — 回到 Closed 前的連續成功次數。
-  # cb_t2_d3_w4_c1 是單執行緒且 time-out 3，24 步內湊不到「開路→期滿→試探成功→關路」；
-  # 實測 40 步／20000 抽樣為 6 次、牆鐘 15 秒（24 步時為 0）→ 加深步數。
+  # cb_t2_d3_w4_c1 是單執行緒且 time-out 3，24 步內湊不到「開路→期滿→試探成功→關路」
+  # （實測 0 次）。加深步數比放大抽樣便宜：40 步／20000 = 6 次（14.8s）但在 harness 複驗
+  # 只剩 1 次（過於脆弱）；60 步／40000 = 17 次、牆鐘 41 秒 → 採用後者。
   - { instance: cb_t1_d1_w2, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 24, max_samples: 20000,
       timeout_seconds: 80, witnesses: [WIT_trialSuccessClosedCircuit] }
-  - { instance: cb_t2_d3_w4_c1, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 40, max_samples: 20000,
-      timeout_seconds: 80, witnesses: [WIT_trialSuccessClosedCircuit] }
+  - { instance: cb_t2_d3_w4_c1, invariant: INV_halfOpenClosesAfterSuccessThreshold, mode: run, max_steps: 60, max_samples: 40000,
+      timeout_seconds: 100, witnesses: [WIT_trialSuccessClosedCircuit] }
 
   # INV_halfOpenFailureReopens — 試探請求失敗後是否回到 Open。
   # cb_t3_d1_w2_c3 同上（門檻 3）：24 步／20000 與 40 步／20000 都是 0；
