@@ -19,7 +19,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -42,9 +41,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * start from the same snapshot of an order must not silently overwrite each other. The later commit
  * has to fail with an optimistic locking error instead of resurrecting a stale status.
  *
- * <p>Disabled on the 01-test layer of the stack because the {@code @Version} mapping and the
- * Liquibase change set that back these assertions only land on the 02-impl layer; the layer above
- * re-enables the class together with the fix.
+ * <p>Backed by the {@code @Version} mapping on {@link OrderEntity} and the {@code orders-6}
+ * Liquibase change set that adds the matching {@code version} column.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
@@ -57,7 +55,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
             "grpc.client.orders.enabled=false"
         })
 @DisplayName("Order Concurrent Update Integration Tests")
-@Disabled("Enabled by the 02-impl layer of issue #58 together with the optimistic locking fix")
 class OrderConcurrentUpdateIntegrationTests {
 
     private static final long TIMEOUT_SECONDS = 20L;

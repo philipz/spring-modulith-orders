@@ -50,4 +50,12 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="orders-6" author="orders" labels="orders" context="all">
+        <comment>Add optimistic locking version column to orders table</comment>
+        <sqlFile path="db/migration/V6__orders_add_version_column.sql"/>
+        <rollback>
+            ALTER TABLE orders.orders DROP COLUMN IF EXISTS version;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
