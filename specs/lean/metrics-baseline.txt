@@ -1,0 +1,32 @@
+# verify-lean.sh metric baseline (key=value; integer counts)
+# generated: 2026-10-23T23:59:14+0800
+# project: /Users/cfh00805122/lab/playground/spring-modulith-orders/specs/lean
+# main: specs/lean/Specs/Rules.lean
+whole_project.lean_files=6
+whole_project.total_lines=871
+whole_project.lean_code_lines=528
+main.total_lines=275
+main.lean_code_lines=185
+main.proof_api.public=23
+main.proof_api.private=0
+main.proof_branching.cases=22
+main.proof_branching.by_cases=0
+main.proof_branching.induction=4
+main.proof_branching.total=26
+main.proof_plumbing.have=10
+main.proof_plumbing.show=0
+main.proof_plumbing.suffices=0
+main.proof_plumbing.rw=15
+main.proof_plumbing.total=25
+main.automation.simp=20
+main.automation.simpa=0
+main.automation.omega=2
+main.automation.linarith=0
+main.automation.grind=0
+main.automation.total=22
+main.representation.List_span=0
+main.representation.takeWhile=0
+main.representation.dropWhile=0
+main.representation.getLast?=0
+main.representation.dropLast=0
+main.representation.total=0
