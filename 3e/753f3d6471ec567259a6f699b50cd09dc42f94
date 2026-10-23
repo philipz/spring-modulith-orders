@@ -1,0 +1,42 @@
+specs/lean/.gitignore
+  h_1b119f25eaf333 1
+specs/lean/Audit.lean
+  h_1b119f25eaf333 1-51
+specs/lean/MODEL-MAP.md
+  h_1b119f25eaf333 1-258
+specs/lean/README.md
+  h_1b119f25eaf333 1-96
+specs/lean/RULES.md
+  h_1b119f25eaf333 1-158
+specs/lean/Specs.lean
+  h_1b119f25eaf333 1-13
+specs/lean/Specs/Examples.lean
+  h_1b119f25eaf333 1-233
+specs/lean/Specs/Model.lean
+  h_1b119f25eaf333 1-190
+specs/lean/Specs/Proofs.lean
+  h_1b119f25eaf333 1-109
+specs/lean/Specs/Rules.lean
+  h_1b119f25eaf333 1-275
+specs/lean/headline-theorems.txt
+  h_1b119f25eaf333 1-23
+specs/lean/lake-manifest.json
+  h_1b119f25eaf333 1-6
+specs/lean/lakefile.toml
+  h_1b119f25eaf333 1-7
+specs/lean/lean-toolchain
+  h_1b119f25eaf333 1
+specs/lean/metrics-baseline.txt
+  h_1b119f25eaf333 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e753f3d6471ec567259a6f699b50cd09dc42f94",
+  "prompts": {},
+  "humans": {
+    "h_1b119f25eaf333": {
+      "author": "philipz <philipzheng@gmail.com>"
+    }
+  }
+}
